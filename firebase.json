@@ -1,0 +1,57 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "makeup-mystery-app",
+          "appId": "1:27943857074:android:d34643e2da21b9f01ed2ab",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "makeup-mystery-app",
+          "appId": "1:27943857074:ios:4da831196e35c86b1ed2ab",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "macos": {
+        "default": {
+          "projectId": "makeup-mystery-app",
+          "appId": "1:27943857074:ios:4da831196e35c86b1ed2ab",
+          "uploadDebugSymbols": false,
+          "fileOutput": "macos/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "makeup-mystery-app",
+          "configurations": {
+            "android": "1:27943857074:android:d34643e2da21b9f01ed2ab",
+            "ios": "1:27943857074:ios:4da831196e35c86b1ed2ab",
+            "macos": "1:27943857074:ios:4da831196e35c86b1ed2ab",
+            "web": "1:27943857074:web:433f755ab5f0209b1ed2ab",
+            "windows": "1:27943857074:web:a790c63a56fc41d01ed2ab"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run lint"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "27943857074",
+    "project_id": "makeup-mystery-app",
+    "storage_bucket": "makeup-mystery-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:27943857074:android:d34643e2da21b9f01ed2ab",
+        "android_client_info": {
+          "package_name": "com.makeupmystery.india"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAmwo42yUYKet8GhAbwtpjQCac7CxW2TnI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
