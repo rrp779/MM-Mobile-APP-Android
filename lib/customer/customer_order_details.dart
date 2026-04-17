@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../widgets/main_bottom_bar.dart';
-import '../widgets/inner_page_app_bar.dart';
 import '../screens/product_detail_screen.dart';
 import '../widgets/app_icon.dart';
+import '../screens/invoice_preview_screen.dart';
+import '../services/invoice_service.dart';
 class OrderDetailsPage extends StatefulWidget {
   final Map order;
 
@@ -16,9 +17,56 @@ class OrderDetailsPage extends StatefulWidget {
 class _OrderDetailsPageState extends State<OrderDetailsPage> {
 
   int selectedIndex = 4;
+  bool _invoiceLoading = false;
 
   void _handleNavigation(int index) {
     // Add navigation logic if needed
+  }
+
+  Future<void> _openDownloadedInvoice() async {
+    if (_invoiceLoading) return;
+
+    final orderId = widget.order["id"]?.toString() ?? "";
+    if (orderId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Order id not found for invoice")),
+      );
+      return;
+    }
+
+    setState(() {
+      _invoiceLoading = true;
+    });
+
+    try {
+      final bytes = await InvoiceService.fetchInvoicePdf(orderId);
+
+      if (!mounted) return;
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => InvoicePreviewScreen(order: widget.order, pdfBytes: bytes),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Invoice download failed (using in-app invoice): $e")),
+      );
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => InvoicePreviewScreen(order: widget.order),
+        ),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _invoiceLoading = false;
+      });
+    }
   }
 
   @override
@@ -27,17 +75,8 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
     final items = widget.order['lineItems']['edges'];
     final address = widget.order['shippingAddress'] ?? {};
 
-    final subtotal =
-        double.tryParse(widget.order['subtotalPriceV2']?['amount'] ?? "0") ?? 0;
-
     final shipping =
         double.tryParse(widget.order['totalShippingPriceV2']?['amount'] ?? "0") ?? 0;
-
-    final paymentMode =
-    (widget.order['paymentGatewayNames'] != null &&
-        widget.order['paymentGatewayNames'].isNotEmpty)
-        ? widget.order['paymentGatewayNames'][0]
-        : "N/A";
 
     final total =
         double.tryParse(widget.order['totalPriceV2']?['amount'] ?? "0") ?? 0;
@@ -87,7 +126,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
 
 
 
-    Widget _priceRow(
+    Widget priceRow(
         String title,
         String value, {
           bool isBold = false,
@@ -151,6 +190,13 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
             Navigator.pop(context);
           },
         ),
+        actions: [
+          IconButton(
+            tooltip: "Invoice / Print",
+            onPressed: _openDownloadedInvoice,
+            icon: const Icon(Icons.receipt_long_outlined, color: Colors.black),
+          ),
+        ],
 
       ),
 
@@ -165,6 +211,32 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
           ),
 
           const SizedBox(height: 16),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEA0180),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              onPressed: _invoiceLoading ? null : _openDownloadedInvoice,
+              icon: _invoiceLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.download_outlined),
+              label: Text(_invoiceLoading ? "Preparing invoice..." : "Download Invoice"),
+            ),
+          ),
 
           /// PRODUCT CARD
           for (var item in items)
@@ -544,21 +616,21 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                   child: Column(
                     children: [
 
-                      _priceRow(
+                      priceRow(
                         "Total MRP",
                         "₹${totalMrp.toStringAsFixed(0)}",
                       ),
 
                       const SizedBox(height: 8),
 
-                      _priceRow(
+                      priceRow(
                         "Discounted Total MRP",
                         "₹${discountedMrp.toStringAsFixed(0)}",
                       ),
 
                       const SizedBox(height: 8),
 
-                      _priceRow(
+                      priceRow(
                         "Additional Discount",
                         "-₹${discount.toStringAsFixed(0)}",
                         valueColor: Colors.green,
@@ -567,14 +639,14 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                       const SizedBox(height: 8),
 
                       /// SHIPPING
-                      _priceRow(
+                      priceRow(
                         "Shipping Charge",
                         shipping == 0 ? "Free" : "₹${shipping.toStringAsFixed(0)}",
                       ),
 
                       const Divider(height: 20),
 
-                      _priceRow(
+                      priceRow(
                         "Order Total",
                         "₹${total.toStringAsFixed(0)}",
                         isBold: true,
