@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:dotted_border/dotted_border.dart';
+import '../config/backend_config.dart';
 
 class CouponBottomSheet extends StatefulWidget {
   final double cartAmount;
@@ -27,7 +28,7 @@ class _CouponBottomSheetState extends State<CouponBottomSheet> {
 
   Future<void> fetchCoupons() async {
     final response = await http.get(
-      Uri.parse("https://mm-backend-production-f67e.up.railway.app/api/shopify/coupons"),
+      Uri.parse("${BackendConfig.baseUrl}/shopify/coupons"),
     );
 
     if (response.statusCode == 200) {
@@ -46,6 +47,24 @@ class _CouponBottomSheetState extends State<CouponBottomSheet> {
   }
 
   double calculateDiscount(Map coupon) {
+    final startsAtRaw = coupon["starts_at"]?.toString();
+    final endsAtRaw = coupon["ends_at"]?.toString();
+
+    DateTime? parseDate(String? v) {
+      if (v == null || v.trim().isEmpty) return null;
+      try {
+        return DateTime.parse(v).toLocal();
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final startsAt = parseDate(startsAtRaw);
+    final endsAt = parseDate(endsAtRaw);
+    final now = DateTime.now();
+    if (startsAt != null && startsAt.isAfter(now)) return 0;
+    if (endsAt != null && endsAt.isBefore(now)) return 0;
+
     final type = coupon["discount_type"];
     final value = double.parse(
         coupon["value"].toString().replaceAll("-", "")
@@ -60,7 +79,8 @@ class _CouponBottomSheetState extends State<CouponBottomSheet> {
 
     /// ✅ FIXED AMOUNT
     if (type == "fixed_amount") {
-      return value;
+      if (value <= 0) return 0;
+      return value > widget.cartAmount ? widget.cartAmount : value;
     }
 
     /// ✅ PERCENTAGE
@@ -122,6 +142,14 @@ class _CouponBottomSheetState extends State<CouponBottomSheet> {
               ? double.tryParse(coupon["minimum"].toString())?.toInt()
               : null;
 
+          final endsAtRaw = coupon["ends_at"]?.toString();
+          bool isExpired = false;
+          if (endsAtRaw != null && endsAtRaw.trim().isNotEmpty) {
+            try {
+              isExpired = DateTime.parse(endsAtRaw).toLocal().isBefore(DateTime.now());
+            } catch (_) {}
+          }
+
           /// ✅ Offer text logic
           if (type == "fixed_amount") {
 
@@ -141,6 +169,10 @@ class _CouponBottomSheetState extends State<CouponBottomSheet> {
               offerText = "🔥 Special Offer: Get $value% OFF";
             }
 
+          }
+
+          if (isExpired) {
+            offerText = "$offerText (Expired)";
           }
 
           return GestureDetector(
@@ -169,6 +201,17 @@ class _CouponBottomSheetState extends State<CouponBottomSheet> {
                             fontWeight: FontWeight.w500,
                           ),
                         ),
+                        if (!isValid && minimum != null && widget.cartAmount < minimum) ...[
+                          SizedBox(height: scale(context, 6)),
+                          Text(
+                            "Minimum order ₹$minimum required",
+                            style: TextStyle(
+                              fontSize: scale(context, 12),
+                              color: Colors.red.shade400,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                         SizedBox(height: scale(context, 8)),
 
                         DottedBorder(

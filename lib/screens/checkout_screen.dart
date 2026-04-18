@@ -10,6 +10,7 @@ import '../customer/customer_orders.dart';
 import '../widgets/address_selector_sheet.dart';
 import '../widgets/coupon_bottom_sheet.dart';
 import '../screens/login_screen.dart';
+import '../config/backend_config.dart';
 
 class CheckoutScreen extends StatefulWidget {
 
@@ -160,6 +161,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   void applySelectedCoupon(Map coupon) {
+    final endsAtRaw = coupon["ends_at"]?.toString();
+    if (endsAtRaw != null && endsAtRaw.trim().isNotEmpty) {
+      try {
+        final endsAt = DateTime.parse(endsAtRaw).toLocal();
+        if (endsAt.isBefore(DateTime.now())) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("This coupon has expired")),
+          );
+          return;
+        }
+      } catch (_) {}
+    }
 
     final type = coupon["discount_type"];
     final value = double.parse(coupon["value"].toString().replaceAll("-", ""));
@@ -226,7 +239,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final customer = context.read<CustomerModel>().customer;
 
     final response = await http.post(
-      Uri.parse("https://mm-backend-production-f67e.up.railway.app/api/payment/create-order"),
+      Uri.parse("${BackendConfig.baseUrl}/payment/create-order"),
       headers: {"Content-Type": "application/json"},
       body: jsonEncode({
         "amount": amountInPaise,
@@ -246,7 +259,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final data = jsonDecode(response.body);
 
     var options = {
-      'key': 'rzp_live_SXKF8Wmi4nJ1SE',
+      'key': 'rzp_test_SNpvRm3HgoZeEj',
       'amount': data['amount'],
       'order_id': data['id'],
       'name': 'Makeup Mystery India',
@@ -373,7 +386,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     String email = customer?["email"] ?? "";
 
     final verify = await http.post(
-      Uri.parse("https://mm-backend-production-f67e.up.railway.app/api/payment/verify"),
+      Uri.parse("${BackendConfig.baseUrl}/payment/verify"),
       headers: {"Content-Type": "application/json"},
       body: jsonEncode({
         "razorpay_order_id": response.orderId,
@@ -491,7 +504,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     void applyManualCoupon() async {
       String code = couponController.text.trim().toUpperCase();
       final response = await http.get(
-        Uri.parse("https://mm-backend-production-f67e.up.railway.app/api/shopify/coupons"),
+        Uri.parse("${BackendConfig.baseUrl}/shopify/coupons"),
       );
       List coupons = jsonDecode(response.body);
       final match = coupons.firstWhere(

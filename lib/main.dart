@@ -4,6 +4,7 @@ import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'config/shopify_client.dart';
 
@@ -42,7 +43,11 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();   // 🔥 ADD THIS
 
+  await dotenv.load(fileName: ".env");
+
+  await Firebase.initializeApp();              // 🔥 ADD THIS
 
   await Hive.initFlutter();
   Hive.registerAdapter(AppNotificationAdapter());

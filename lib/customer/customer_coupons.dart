@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart';
 import '../widgets/app_icon.dart';
 import 'package:dotted_border/dotted_border.dart';
+import '../config/backend_config.dart';
 
 class CouponsPage extends StatefulWidget {
   const CouponsPage({super.key});
@@ -44,7 +45,7 @@ class _CouponsPageState extends State<CouponsPage> {
   Future<void> fetchCoupons() async {
     try {
       final response = await http.get(
-        Uri.parse("https://mm-backend-production-f67e.up.railway.app/api/shopify/coupons"),
+        Uri.parse("${BackendConfig.baseUrl}/shopify/coupons"),
       );
 
       if (response.statusCode == 200) {

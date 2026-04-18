@@ -5,6 +5,7 @@ import '../screens/product_detail_screen.dart';
 import '../widgets/app_icon.dart';
 import '../screens/invoice_preview_screen.dart';
 import '../services/invoice_service.dart';
+import '../screens/order_tracking_screen.dart';
 class OrderDetailsPage extends StatefulWidget {
   final Map order;
 
@@ -67,6 +68,15 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
         _invoiceLoading = false;
       });
     }
+  }
+
+  Future<void> _openOrderTracking() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OrderTrackingScreen(order: widget.order),
+      ),
+    );
   }
 
   @override
@@ -235,6 +245,25 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                     )
                   : const Icon(Icons.download_outlined),
               label: Text(_invoiceLoading ? "Preparing invoice..." : "Download Invoice"),
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFEA0180),
+                side: const BorderSide(color: Color(0xFFEA0180)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              onPressed: _openOrderTracking,
+              icon: const Icon(Icons.local_shipping_outlined),
+              label: const Text("Track Order"),
             ),
           ),
 

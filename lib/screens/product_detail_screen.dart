@@ -12,7 +12,9 @@ import '../widgets/product_bottom_bar.dart';
 import '../widgets/product_horizontal_slider.dart';
 import '../widgets/product_detail_skeleton.dart';
 import '../services/review_service.dart';
+import 'write_review_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:intl/intl.dart';
 
 class ProductDetailScreen extends StatefulWidget {
 
@@ -36,6 +38,9 @@ class _ProductDetailScreenState
   int selectedVariantIndex = 0;
   int currentImageIndex = 0;
   int quantity = 1;
+  String? _reviewsProductId;
+  List? _reviewsData;
+  bool _reviewsLoading = false;
   late PageController _pageController;
   final ScrollController _thumbScrollController =
   ScrollController();
@@ -189,26 +194,85 @@ class _ProductDetailScreenState
     return gid.split('/').last;
   }
 
-  Widget buildReviews(String productGid) {
-
+  void _ensureReviewsLoaded(String productGid, {bool force = false}) {
     final productId = getNumericProductId(productGid);
 
-    return FutureBuilder(
-      future: ReviewService.fetchProductReviews(productId),
-      builder: (context, snapshot) {
+    final isNewProduct = _reviewsProductId != productId;
+    if (!force && !isNewProduct) return;
+    if (_reviewsLoading) return;
 
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    _reviewsProductId = productId;
+    _reviewsLoading = true;
+    if (isNewProduct) {
+      _reviewsData = null;
+    }
 
-        if (!snapshot.hasData || (snapshot.data as List).isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text("No reviews yet"),
+    // Avoid async work directly inside build.
+    Future.microtask(() async {
+      try {
+        final data = await ReviewService.fetchProductReviews(productId);
+        if (!mounted) return;
+        setState(() {
+          _reviewsData = data;
+        });
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _reviewsData = const [];
+        });
+      } finally {
+        if (!mounted) return;
+        setState(() {
+          _reviewsLoading = false;
+        });
+      }
+    });
+  }
+
+  Widget buildReviews(String productGid) {
+    _ensureReviewsLoaded(productGid);
+
+    if (_reviewsData == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final reviews = _reviewsData as List;
+    if (reviews.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: Text("No reviews yet"),
+      );
+    }
+
+        final totalReviews = reviews.length;
+        final avgRating = totalReviews == 0
+            ? 0.0
+            : reviews
+                    .map((r) => (r as Map)["rating"])
+                    .map((v) => (v is int) ? v.toDouble() : (v as num).toDouble())
+                    .reduce((a, b) => a + b) /
+                totalReviews;
+
+        Widget buildAvgStars(double value) {
+          IconData iconFor(int index) {
+            final diff = value - index;
+            if (diff >= 1) return Icons.star;
+            if (diff >= 0.5) return Icons.star_half;
+            return Icons.star_border;
+          }
+
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(
+              5,
+              (i) => Icon(
+                iconFor(i),
+                color: const Color(0xFFEA0180),
+                size: 18,
+              ),
+            ),
           );
         }
-
-        final reviews = snapshot.data as List;
 
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -218,13 +282,43 @@ class _ProductDetailScreenState
 
               const SizedBox(height: 20),
 
-              const Center(
-                child: Text(
-                  "Customer Reviews",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
+              Center(
+                child: Column(
+                  children: [
+                    const Text(
+                      "Customer Reviews",
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        buildAvgStars(avgRating),
+                        const SizedBox(width: 8),
+                        Text(
+                          "${avgRating.toStringAsFixed(1)} ($totalReviews)",
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_reviewsLoading) ...[
+                      const SizedBox(height: 10),
+                      const SizedBox(
+                        width: 120,
+                        child: LinearProgressIndicator(
+                          minHeight: 2,
+                          color: Color(0xFFEA0180),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
 
@@ -237,6 +331,16 @@ class _ProductDetailScreenState
                 itemBuilder: (context, index) {
 
                   final review = reviews[index];
+                  final raw = review["createdAt"] ?? review["timestamp"] ?? "";
+                  String timeLabel = "";
+                  if (raw.toString().isNotEmpty) {
+                    try {
+                      final d = DateTime.parse(raw.toString());
+                      timeLabel = DateFormat('d MMM yyyy').format(d);
+                    } catch (_) {
+                      timeLabel = "";
+                    }
+                  }
 
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 14),
@@ -275,6 +379,11 @@ class _ProductDetailScreenState
                             fontSize: 14,
                           ),
                         ),
+                        if (timeLabel.isNotEmpty)
+                          Text(
+                            timeLabel,
+                            style: const TextStyle(fontSize: 12, color: Colors.black45),
+                          ),
 
                         const Divider(height: 30),
                       ],
@@ -285,8 +394,6 @@ class _ProductDetailScreenState
             ],
           ),
         );
-      },
-    );
   }
 
   @override
@@ -880,8 +987,29 @@ class _ProductDetailScreenState
                     ),
 
                     const SizedBox(height: 30),
+                  
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => WriteReviewScreen(
+                              productId: getNumericProductId(product.id),
+                              productTitle: product.title,
+                            ),
+                          ),
+                        );
+                        if (result == true && mounted) {
+                          _ensureReviewsLoaded(product.id, force: true);
+                        }
+                      },
+                      child: const Text("Write a Review"),
+                    ),
+                  ),
 
-                   // buildReviews(product.id),
+                   buildReviews(product.id),
 
                   ],
                 )
