@@ -44,6 +44,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return "₹ ${amount.toStringAsFixed(2)}";
   }
 
+  double calculateShipping(double subtotal) {
+    if (subtotal >= 1500) return 0;
+    return 80;
+  }
+
   String? appliedCoupon;
   double couponDiscount = 0;
   TextEditingController couponController = TextEditingController();
@@ -231,7 +236,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     /// ✅ USE SAME CALCULATION
     double subtotalAfterDiscount = widget.totalAmount - couponDiscount;
-    double shipping = subtotalAfterDiscount < 1500 ? 80 : 0;
+    double shipping = calculateShipping(subtotalAfterDiscount);
     double finalAmount = subtotalAfterDiscount + shipping;
 
     int amountInPaise = (finalAmount * 100).toInt();
@@ -246,11 +251,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         "cart": widget.cartItems.map((item) => {
           "variant_id": item["variant_id"],  // MUST exist
           "quantity": item["qty"],           // FIX HERE
+          "price": item["price"] ?? 0,
         }).toList(),
         "total_mrp": widget.totalMrp,
         "discount": widget.totalDiscount,
         "coupon_discount": couponDiscount,
-        "shipping": shipping,
+        "shippingAmount": shipping,
         "email": customer?["email"] ?? "",
         "phone": selectedAddress?["phone"] ?? "",
       }),
@@ -371,7 +377,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
 
     double subtotalAfterDiscount = widget.totalAmount - couponDiscount;
-    double shipping = subtotalAfterDiscount < 1500 ? 80 : 0;
+    double shipping = calculateShipping(subtotalAfterDiscount);
     double finalAmount = subtotalAfterDiscount + shipping;
 
     /// ✅ FIX: Safe name parsing
@@ -405,6 +411,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         "pincode": selectedAddress?["zip"] ?? "",
 
         "amount": (finalAmount * 100).toInt(),
+
+        "couponCode": appliedCoupon,
+        "couponDiscount": couponDiscount,
+        "shippingAmount": shipping,
+        "totalMrp": widget.totalMrp,
+        "productDiscount": widget.totalDiscount,
       }),
     );
 
@@ -445,7 +457,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final userName = customer?['firstName'] ?? "Customer";
     /// ✅ GLOBAL CALCULATION (IMPORTANT)
     double subtotalAfterDiscount = widget.totalAmount - couponDiscount;
-    double shipping = subtotalAfterDiscount < 1500 ? 80 : 0;
+    double shipping = calculateShipping(subtotalAfterDiscount);
     double finalAmount = subtotalAfterDiscount + shipping;
 
 

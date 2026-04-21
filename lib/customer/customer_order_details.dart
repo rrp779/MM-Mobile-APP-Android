@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert' show jsonDecode;
 import '../widgets/main_bottom_bar.dart';
 import '../screens/product_detail_screen.dart';
 import '../widgets/app_icon.dart';
 import '../screens/invoice_preview_screen.dart';
 import '../services/invoice_service.dart';
 import '../screens/order_tracking_screen.dart';
+import '../config/backend_config.dart';
 class OrderDetailsPage extends StatefulWidget {
   final Map order;
 
@@ -19,6 +22,84 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
 
   int selectedIndex = 4;
   bool _invoiceLoading = false;
+  Map<String, dynamic>? _apiOrder;
+
+  String _displayStatus(Map order) {
+    final financial = (order['financialStatus'] ??
+            order['financial_status'] ??
+            order['displayFinancialStatus'] ??
+            '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    final fulfillment = (order['fulfillmentStatus'] ??
+            order['fulfillment_status'] ??
+            order['displayFulfillmentStatus'] ??
+            '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    final cancelReason = (order['cancelReason'] ?? order['cancel_reason'] ?? '').toString().trim();
+    final cancelledAt = (order['cancelledAt'] ?? order['cancelled_at'] ?? '').toString().trim();
+
+    if (cancelReason.isNotEmpty || cancelledAt.isNotEmpty) return 'Cancelled';
+    if (financial == 'voided') return 'Cancelled';
+    if (financial == 'refunded') return 'Refunded';
+    if (financial == 'partially_refunded') return 'Partially Refunded';
+    if (fulfillment == 'fulfilled') return 'Delivered';
+    if (fulfillment == 'partial') return 'Partially Shipped';
+    if (financial == 'paid' || financial == 'partially_paid') return 'Confirmed';
+    if (financial == 'pending') return 'Pending Payment';
+    return 'Processing';
+  }
+
+  String _resolveDisplayStatus(Map order) {
+    final fromApi = (order['displayStatus'] ?? order['display_status'] ?? '').toString().trim();
+    if (fromApi.isNotEmpty) return fromApi;
+    return _displayStatus(order);
+  }
+
+  Color _statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'delivered':
+        return Colors.green;
+      case 'cancelled':
+        return Colors.red;
+      case 'refunded':
+        return Colors.red;
+      case 'partially refunded':
+        return Colors.orange;
+      case 'confirmed':
+        return Colors.blue;
+      case 'pending payment':
+        return Colors.orange;
+      case 'processing':
+        return Colors.orange;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Widget _statusBadge(String status) {
+    final color = _statusColor(status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.4)),
+      ),
+      child: Text(
+        status.toUpperCase(),
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
 
   void _handleNavigation(int index) {
     // Add navigation logic if needed
@@ -79,17 +160,91 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
     );
   }
 
+  String _extractNumericId(String rawId) {
+    String id = rawId.trim();
+    if (id.contains('gid://shopify/Order/')) {
+      id = id.replaceAll('gid://shopify/Order/', '');
+    }
+    if (id.contains('?')) {
+      id = id.split('?')[0];
+    }
+    return id.trim();
+  }
+
+  Future<void> _loadOrderDetailsFromApi() async {
+    try {
+      final rawId = widget.order['id']?.toString() ?? '';
+      final cleanId = _extractNumericId(rawId);
+      if (cleanId.isEmpty) return;
+
+      final encoded = Uri.encodeComponent(cleanId);
+      final url = Uri.parse('${BackendConfig.baseUrl}/order/$encoded');
+      final response = await http.get(url);
+      if (response.statusCode != 200) return;
+
+      final decoded = jsonDecode(response.body);
+      if (!mounted) return;
+      if (decoded is Map<String, dynamic>) {
+        setState(() {
+          _apiOrder = decoded;
+        });
+      }
+    } catch (_) {
+      // Best-effort only; UI falls back to Shopify Storefront fields.
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOrderDetailsFromApi();
+  }
+
   @override
   Widget build(BuildContext context) {
 
     final items = widget.order['lineItems']['edges'];
     final address = widget.order['shippingAddress'] ?? {};
 
-    final shipping =
-        double.tryParse(widget.order['totalShippingPriceV2']?['amount'] ?? "0") ?? 0;
+    final shippingCharge = double.tryParse(
+          _apiOrder?['shippingCharge']?.toString() ??
+              widget.order['shippingCharge']?.toString() ??
+              widget.order['totalShippingPriceV2']?['amount']?.toString() ??
+              "0",
+        ) ??
+        0;
+    final shippingTitle = (_apiOrder?['shippingTitle'] ?? widget.order['shippingTitle'] ?? 'Shipping Charge').toString();
 
-    final total =
-        double.tryParse(widget.order['totalPriceV2']?['amount'] ?? "0") ?? 0;
+    final total = double.tryParse(
+          _apiOrder?['currentTotalPriceSet']?['shopMoney']?['amount']?.toString() ??
+              widget.order['totalPriceV2']?['amount']?.toString() ??
+              "0",
+        ) ??
+        0;
+
+    final couponDiscountFromApi = double.tryParse(widget.order['couponDiscount']?.toString() ?? "0") ?? 0;
+    final couponCode = (_apiOrder?['couponCode'] ?? widget.order['couponCode'])?.toString();
+    final couponDiscountFromShopify = (() {
+      final apps = widget.order['discountApplications'];
+      if (apps is! Map) return 0.0;
+      final edges = apps['edges'];
+      if (edges is! List) return 0.0;
+      double sum = 0;
+      for (final e in edges) {
+        if (e is! Map) continue;
+        final node = e['node'];
+        if (node is! Map) continue;
+        final value = node['value'];
+        if (value is! Map) continue;
+        final amt = double.tryParse(value['amount']?.toString() ?? "0") ?? 0;
+        sum += amt;
+      }
+      return sum;
+    })();
+    final couponDiscountFromBackend = double.tryParse(_apiOrder?['couponDiscount']?.toString() ?? "0") ?? 0;
+    final couponDiscount = couponDiscountFromBackend > 0
+        ? couponDiscountFromBackend
+        : (couponDiscountFromApi > 0 ? couponDiscountFromApi : couponDiscountFromShopify);
 
     /// Calculate discount from compareAtPrice
     double totalMrp = 0;
@@ -113,26 +268,11 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
     }
 
     final discount = totalMrp - discountedMrp;
+    final productDiscount = double.tryParse(_apiOrder?['productDiscount']?.toString() ?? "") ??
+        double.tryParse(widget.order['productDiscount']?.toString() ?? "") ??
+        discount;
 
-    final fulfillmentStatus = widget.order['fulfillmentStatus'] ?? "";
-
-    String statusText = "Processing";
-    Color statusColor = Colors.orange;
-    Color statusBg = Colors.orange.shade50;
-
-    if (fulfillmentStatus == "FULFILLED") {
-      statusText = "Delivered";
-      statusColor = Colors.green;
-      statusBg = Colors.green.shade50;
-    } else if (fulfillmentStatus == "PARTIAL") {
-      statusText = "Partially Delivered";
-      statusColor = Colors.blue;
-      statusBg = Colors.blue.shade50;
-    } else if (fulfillmentStatus == "UNFULFILLED") {
-      statusText = "Processing";
-      statusColor = Colors.orange;
-      statusBg = Colors.orange.shade50;
-    }
+    final displayStatus = _resolveDisplayStatus(widget.order);
 
 
 
@@ -409,29 +549,29 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
 
-              Text(
-                "$statusText On ${DateFormat('EEE, d MMM').format(DateTime.parse(widget.order['processedAt']))}",
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    displayStatus,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    "On ${DateFormat('EEE, d MMM').format(DateTime.parse(widget.order['processedAt']))}",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 12,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ],
               ),
 
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusBg,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  statusText,
-                  style: TextStyle(
-                    color: statusColor,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 12,
-                  ),
-                ),
-              )
+              _statusBadge(displayStatus),
             ],
           ),
           const SizedBox(height: 10),
@@ -661,16 +801,30 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
 
                       priceRow(
                         "Additional Discount",
-                        "-₹${discount.toStringAsFixed(0)}",
+                        "-₹${productDiscount.toStringAsFixed(0)}",
                         valueColor: Colors.green,
                       ),
 
                       const SizedBox(height: 8),
 
+                      if (couponDiscount > 0) ...[
+                        priceRow(
+                          couponCode != null && couponCode.trim().isNotEmpty
+                              ? "Coupon ($couponCode)"
+                              : "Coupon Discount",
+                          "-₹${couponDiscount.toStringAsFixed(0)}",
+                          valueColor: Colors.green,
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+
                       /// SHIPPING
                       priceRow(
-                        "Shipping Charge",
-                        shipping == 0 ? "Free" : "₹${shipping.toStringAsFixed(0)}",
+                        shippingTitle,
+                        shippingCharge == 0
+                            ? "Free"
+                            : "₹${shippingCharge.toStringAsFixed(0)}",
+                        valueColor: shippingCharge == 0 ? Colors.green : null,
                       ),
 
                       const Divider(height: 20),

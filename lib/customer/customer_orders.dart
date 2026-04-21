@@ -25,6 +25,82 @@ class _CustomerOrdersState extends State<CustomerOrders> {
 	Map? _paginationInfo;
 	int selectedIndex = 4;
 
+	String _normalizeStatusValue(dynamic raw) {
+		final s = (raw ?? '').toString().trim();
+		if (s.isEmpty) return '';
+		final last = s.contains('.') ? s.split('.').last : s;
+		return last.trim().toLowerCase().replaceAll(' ', '_').replaceAll('-', '_');
+	}
+
+	String _displayStatus(Map node) {
+		final financial = _normalizeStatusValue(
+			node['financialStatus'] ?? node['financial_status'] ?? node['displayFinancialStatus'],
+		);
+		final fulfillment = _normalizeStatusValue(
+			node['fulfillmentStatus'] ?? node['fulfillment_status'] ?? node['displayFulfillmentStatus'],
+		);
+		final cancelReason = (node['cancelReason'] ?? node['cancel_reason'] ?? '').toString().trim();
+		final cancelledAt = (node['cancelledAt'] ?? node['cancelled_at'] ?? '').toString().trim();
+
+		if (cancelReason.isNotEmpty || cancelledAt.isNotEmpty) return 'Cancelled';
+		if (financial == 'voided') return 'Cancelled';
+		if (financial == 'refunded') return 'Refunded';
+		if (financial == 'partially_refunded' || financial == 'partiallyrefunded') return 'Partially Refunded';
+		if (fulfillment == 'fulfilled') return 'Delivered';
+		if (fulfillment == 'partial' || fulfillment == 'partially_fulfilled') return 'Partially Shipped';
+		if (financial == 'paid' || financial == 'partially_paid') return 'Confirmed';
+		if (financial == 'pending') return 'Pending Payment';
+		return 'Processing';
+	}
+
+	String _resolveDisplayStatus(Map node) {
+		final fromApi = (node['displayStatus'] ?? node['display_status'] ?? '').toString().trim();
+		if (fromApi.isNotEmpty) return fromApi;
+		return _displayStatus(node);
+	}
+
+	Color _statusColor(String status) {
+		switch (status.toLowerCase()) {
+			case 'delivered':
+				return Colors.green;
+			case 'cancelled':
+				return Colors.red;
+			case 'refunded':
+				return Colors.red;
+			case 'partially refunded':
+				return Colors.orange;
+			case 'confirmed':
+				return Colors.blue;
+			case 'pending payment':
+				return Colors.orange;
+			case 'processing':
+				return Colors.orange;
+			default:
+				return Colors.grey;
+		}
+	}
+
+	Widget _statusBadge(String status) {
+		final color = _statusColor(status);
+		return Container(
+			padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+			decoration: BoxDecoration(
+				color: color.withOpacity(0.1),
+				borderRadius: BorderRadius.circular(20),
+				border: Border.all(color: color.withOpacity(0.4)),
+			),
+			child: Text(
+				status.toUpperCase(),
+				style: TextStyle(
+					color: color,
+					fontSize: 11,
+					fontWeight: FontWeight.w700,
+					letterSpacing: 0.5,
+				),
+			),
+		);
+	}
+
 
 	void _handleNavigation(int index) {
 		switch (index) {
@@ -65,7 +141,7 @@ class _CustomerOrdersState extends State<CustomerOrders> {
 				document: gql(r'''
       query customer($accessToken: String!, $limit: Int, $after: String) {
         customer(customerAccessToken: $accessToken) {
-          orders(first: $limit, after: $after) {
+          orders(first: $limit, after: $after, sortKey: PROCESSED_AT, reverse: true) {
 
             edges {
               node {
@@ -112,6 +188,7 @@ class _CustomerOrdersState extends State<CustomerOrders> {
 
                 financialStatus
                 fulfillmentStatus
+                cancelReason
                 customerUrl
 
                 lineItems(first: 5) {
@@ -333,27 +410,12 @@ class _CustomerOrdersState extends State<CustomerOrders> {
 
 																			Builder(
 																				builder: (context) {
-
-																					final fulfillmentStatus = edge['node']['fulfillmentStatus'] ?? "";
-
-																					String text = "Processing";
-																					Color textColor = Colors.orange;
-
-																					if (fulfillmentStatus == "FULFILLED") {
-																						text = "Delivered";
-																						textColor = Colors.green;
-																					}
-																					else if (fulfillmentStatus == "PARTIAL") {
-																						text = "Partially Delivered";
-																						textColor = Colors.blue;
-																					}
-																					else if (fulfillmentStatus == "UNFULFILLED") {
-																						text = "Processing";
-																						textColor = Colors.orange;
-																					}
+																					final node = Map<String, dynamic>.from(edge['node'] as Map);
+																					final displayStatus = _resolveDisplayStatus(node);
+																					final textColor = _statusColor(displayStatus);
 
 																					return Text(
-																						text,
+																						displayStatus,
 																						style: TextStyle(
 																							fontSize: 14,
 																							fontWeight: FontWeight.bold,
@@ -365,38 +427,9 @@ class _CustomerOrdersState extends State<CustomerOrders> {
 
 																			Builder(
 																				builder: (context) {
-
-																					final financialStatus = edge['node']['financialStatus'] ?? "";
-
-																					Color bgColor = Colors.orange.shade50;
-																					Color textColor = Colors.orange;
-
-																					if (financialStatus == "PAID") {
-																						bgColor = Colors.green.shade50;
-																						textColor = Colors.green;
-																					} else if (financialStatus == "REFUNDED") {
-																						bgColor = Colors.blue.shade50;
-																						textColor = Colors.blue;
-																					} else if (financialStatus == "PARTIALLY_PAID") {
-																						bgColor = Colors.red.shade50;
-																						textColor = Colors.red;
-																					}
-
-																					return Container(
-																						padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-																						decoration: BoxDecoration(
-																							color: bgColor,
-																							borderRadius: BorderRadius.circular(20),
-																						),
-																						child: Text(
-																							financialStatus.replaceAll("_", " "),
-																							style: TextStyle(
-																								color: textColor,
-																								fontSize: 10,
-																								fontWeight: FontWeight.w500,
-																							),
-																						),
-																					);
+																					final node = Map<String, dynamic>.from(edge['node'] as Map);
+																					final displayStatus = _resolveDisplayStatus(node);
+																					return _statusBadge(displayStatus);
 																				},
 																			)
 
