@@ -1,5 +1,7 @@
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
+
 import '../config/backend_config.dart';
 
 class OrderTrackingService {
@@ -20,9 +22,7 @@ class OrderTrackingService {
   }
 
   static Future<Map<String, dynamic>> fetchTracking(String orderIdOrGid) async {
-    // ✅ Extract clean numeric ID before calling API
     final cleanId = _extractNumericId(orderIdOrGid);
-
     final url = Uri.parse('${BackendConfig.baseUrl}/order/$cleanId/tracking');
 
     final response = await http.get(url);
