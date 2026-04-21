@@ -265,7 +265,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final data = jsonDecode(response.body);
 
     var options = {
-      'key': 'rzp_test_SNpvRm3HgoZeEj',
+      'key': 'rzp_live_GzquMVNsjzft2W',
       'amount': data['amount'],
       'order_id': data['id'],
       'name': 'Makeup Mystery India',
