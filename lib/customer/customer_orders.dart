@@ -46,10 +46,13 @@ class _CustomerOrdersState extends State<CustomerOrders> {
 		if (financial == 'voided') return 'Cancelled';
 		if (financial == 'refunded') return 'Refunded';
 		if (financial == 'partially_refunded' || financial == 'partiallyrefunded') return 'Partially Refunded';
-		if (fulfillment == 'fulfilled') return 'Delivered';
+		// Shopify "fulfilled" typically means shipped; delivery is tracked separately.
+		if (fulfillment == 'fulfilled') return 'Shipped';
+		if (fulfillment == 'in_progress') return 'Shipped';
 		if (fulfillment == 'partial' || fulfillment == 'partially_fulfilled') return 'Partially Shipped';
 		if (financial == 'paid' || financial == 'partially_paid') return 'Confirmed';
-		if (financial == 'pending') return 'Pending Payment';
+		// Keep lifecycle simple: show Confirmed for new orders.
+		if (financial == 'pending') return 'Confirmed';
 		return 'Processing';
 	}
 
@@ -57,6 +60,16 @@ class _CustomerOrdersState extends State<CustomerOrders> {
 		final fromApi = (node['displayStatus'] ?? node['display_status'] ?? '').toString().trim();
 		if (fromApi.isNotEmpty) return fromApi;
 		return _displayStatus(node);
+	}
+
+	String _formatOrderDate(dynamic processedAt) {
+		try {
+			final s = (processedAt ?? '').toString();
+			final d = DateTime.parse(s);
+			return DateFormat('EEE, d MMM').format(d);
+		} catch (_) {
+			return '-';
+		}
 	}
 
 	Color _statusColor(String status) {
@@ -247,27 +260,55 @@ class _CustomerOrdersState extends State<CustomerOrders> {
 		);
 
 		if (kDebugMode) {
-			print(result);
+			if (result.hasException) {
+				print('CustomerOrders GraphQL exception: ${result.exception}');
+			}
+			final edges = (result.data?['customer']?['orders']?['edges'] as List?) ?? const [];
+			final names = edges
+				.map((e) => (e is Map ? (e['node']?['name'] ?? '') : '').toString())
+				.where((s) => s.isNotEmpty)
+				.toList();
+			print('CustomerOrders fetched ${edges.length} orders: $names');
 		}
 
 		setState(() {
-			if (after == null) {
-				_orders = result.data!['customer']['orders']['edges'];
+			final fetchedEdges = (result.data?['customer']?['orders']?['edges'] as List?) ?? [];
+
+			List merged = [];
+			if (after == null || _orders == null) {
+				merged = List.from(fetchedEdges);
 			} else {
-				List orders = result.data!['customer']['orders']['edges'];
-
-				orders.sort((a, b) {
-					DateTime dateA = DateTime.parse(a['node']['processedAt']);
-					DateTime dateB = DateTime.parse(b['node']['processedAt']);
-
-					return dateB.compareTo(dateA); // 🔥 latest first
-				});
-
-				_orders = orders;
+				merged = [..._orders!, ...fetchedEdges];
 			}
 
+			// De-duplicate by order id (Shopify GID)
+			final byId = <String, dynamic>{};
+			for (final e in merged) {
+				if (e is! Map) continue;
+				final id = (e['node']?['id'] ?? '').toString();
+				if (id.isEmpty) continue;
+				byId[id] = e;
+			}
+
+			final deduped = byId.values.toList();
+			DateTime _safeParse(dynamic v) {
+				try {
+					final s = (v ?? '').toString();
+					return DateTime.parse(s);
+				} catch (_) {
+					return DateTime.fromMillisecondsSinceEpoch(0);
+				}
+			}
+			deduped.sort((a, b) {
+				final dateA = _safeParse((a as Map)['node']?['processedAt']);
+				final dateB = _safeParse((b as Map)['node']?['processedAt']);
+				return dateB.compareTo(dateA);
+			});
+
+			_orders = deduped;
+
 			_paginationLoading = false;
-			_paginationInfo = result.data!['customer']['orders']['pageInfo'];
+			_paginationInfo = result.data?['customer']?['orders']?['pageInfo'];
 		});
 	}
 
@@ -380,8 +421,7 @@ class _CustomerOrdersState extends State<CustomerOrders> {
 																		),
 																	),
 																	Text(
-																		DateFormat('EEE, d MMM')
-																				.format(DateTime.parse(edge['node']['processedAt'])),
+																		_formatOrderDate(edge['node']['processedAt']),
 																		style: const TextStyle(color: Colors.black,fontSize: 12, ),
 																	)
 																],
@@ -439,7 +479,7 @@ class _CustomerOrdersState extends State<CustomerOrders> {
 																	const SizedBox(height: 4),
 
 																	Text(
-																		"On ${DateFormat('EEE, d MMM').format(DateTime.parse(edge['node']['processedAt']))}",
+																		"On ${_formatOrderDate(edge['node']['processedAt'])}",
 																		style: const TextStyle(color: Colors.grey),
 																	),
 

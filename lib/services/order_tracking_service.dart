@@ -21,9 +21,18 @@ class OrderTrackingService {
     return id.trim();
   }
 
-  static Future<Map<String, dynamic>> fetchTracking(String orderIdOrGid) async {
+  static Future<Map<String, dynamic>> fetchTracking(
+    String orderIdOrGid, {
+    bool forceRefresh = false,
+    String? simulateShiprocketStatus,
+  }) async {
     final cleanId = _extractNumericId(orderIdOrGid);
-    final url = Uri.parse('${BackendConfig.baseUrl}/order/$cleanId/tracking');
+    final base = Uri.parse('${BackendConfig.baseUrl}/order/$cleanId/tracking');
+    final qp = <String, String>{};
+    if (forceRefresh) qp['force'] = '1';
+    final sim = (simulateShiprocketStatus ?? '').trim();
+    if (sim.isNotEmpty) qp['simulate'] = sim;
+    final url = qp.isEmpty ? base : base.replace(queryParameters: qp);
 
     final response = await http.get(url);
 

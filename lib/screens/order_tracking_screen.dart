@@ -45,10 +45,12 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     if (financial == 'voided') return 'Cancelled';
     if (financial == 'refunded') return 'Refunded';
     if (financial == 'partially_refunded') return 'Partially Refunded';
-    if (fulfillment == 'fulfilled') return 'Delivered';
-    if (fulfillment == 'partial') return 'Partially Shipped';
+    // Shopify "fulfilled" typically means shipped; delivery is tracked separately.
+    if (fulfillment == 'fulfilled' || fulfillment == 'in_progress') return 'Shipped';
+    if (fulfillment == 'partial' || fulfillment == 'partially_fulfilled') return 'Partially Shipped';
     if (financial == 'paid' || financial == 'partially_paid') return 'Confirmed';
-    if (financial == 'pending') return 'Pending Payment';
+    // Keep lifecycle simple: show Confirmed for new orders.
+    if (financial == 'pending') return 'Confirmed';
     return 'Processing';
   }
 
@@ -121,10 +123,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                     const SizedBox(height: 12),
                     OutlinedButton(
                       onPressed: () {
-                        setState(() {
-                          final orderId = widget.order['id']?.toString() ?? '';
-                          _future = OrderTrackingService.fetchTracking(orderId);
-                        });
+                        _refresh();
                       },
                       child: const Text('Retry'),
                     ),
@@ -137,16 +136,23 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
           final data = snapshot.data ?? const <String, dynamic>{};
           final trackingNumber = data['trackingNumber']?.toString();
           final courier = data['courier']?.toString();
-          final apiCurrentStatus = data['currentStatus']?.toString();
           final estimatedDelivery = data['estimatedDelivery']?.toString();
           final shiprocketAvailable = data['shiprocket_available'] == true;
           final liveTrackingUrl = data['liveTrackingUrl']?.toString();
-          final displayStatus = _resolveDisplayStatus(order: widget.order, apiData: data);
+          final trackingEnabled = data['trackingEnabled'] == true;
+          final trackingMessage = data['trackingMessage']?.toString();
+          final estimatedDeliveryText = data['estimatedDeliveryText']?.toString();
+
+          // Backend is the single source of truth for display status and ETA text.
+          final backendStatus = data['displayStatus']?.toString().trim();
+          final fallbackStatus = _resolveDisplayStatus(order: widget.order, apiData: data);
+          final displayStatus = (backendStatus != null && backendStatus.isNotEmpty)
+              ? backendStatus
+              : fallbackStatus;
+
           final normalizedStatus = displayStatus.toLowerCase().trim();
           final isCancelledOrRefunded = normalizedStatus == 'cancelled' || normalizedStatus == 'refunded';
-          final currentStatus = (data['displayStatus']?.toString().trim().isNotEmpty == true)
-              ? data['displayStatus']?.toString()
-              : (apiCurrentStatus?.toString().trim().isNotEmpty == true ? apiCurrentStatus : displayStatus);
+          final currentStatus = displayStatus;
 
           final timeline = (data['timeline'] is List)
               ? List<Map<String, dynamic>>.from(data['timeline'])
@@ -165,9 +171,15 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                 trackingNumber: trackingNumber,
                 currentStatus: currentStatus,
                 estimatedDelivery: estimatedDelivery,
+                estimatedDeliveryText: estimatedDeliveryText,
                 shiprocketAvailable: shiprocketAvailable,
                 showCancelledBanner: isCancelledOrRefunded,
-                onTrackTap: (!isCancelledOrRefunded && liveTrackingUrl != null && liveTrackingUrl.isNotEmpty)
+                trackingEnabled: trackingEnabled,
+                trackingMessage: trackingMessage,
+                onTrackTap: (!isCancelledOrRefunded &&
+                        trackingEnabled &&
+                        liveTrackingUrl != null &&
+                        liveTrackingUrl.isNotEmpty)
                     ? () => _openTrackingUrl(liveTrackingUrl)
                     : null,
               ),
@@ -206,8 +218,11 @@ class _TrackingCard extends StatelessWidget {
   final String? trackingNumber;
   final String? currentStatus;
   final String? estimatedDelivery;
+  final String? estimatedDeliveryText;
   final bool shiprocketAvailable;
   final bool showCancelledBanner;
+  final bool trackingEnabled;
+  final String? trackingMessage;
   final VoidCallback? onTrackTap;
 
   const _TrackingCard({
@@ -216,8 +231,11 @@ class _TrackingCard extends StatelessWidget {
     required this.trackingNumber,
     required this.currentStatus,
     required this.estimatedDelivery,
+    required this.estimatedDeliveryText,
     required this.shiprocketAvailable,
     required this.showCancelledBanner,
+    required this.trackingEnabled,
+    required this.trackingMessage,
     required this.onTrackTap,
   });
 
@@ -235,22 +253,19 @@ class _TrackingCard extends StatelessWidget {
       return rawOrder;
     })();
 
-    String? estimatedLabel;
-    if (!shiprocketAvailable) {
-      estimatedLabel = "After shipment";
-    } else if (estimatedDelivery == null || estimatedDelivery!.isEmpty) {
-      estimatedLabel = "Calculating...";
-    } else {
-      try {
-        final d = DateTime.parse(estimatedDelivery!);
-        estimatedLabel = DateFormat('EEE, d MMM').format(d);
-      } catch (_) {
-        estimatedLabel = estimatedDelivery;
-      }
-    }
+    final estimatedLabel = (estimatedDeliveryText ?? '').trim().isNotEmpty
+        ? estimatedDeliveryText!.trim()
+        : (() {
+            if (estimatedDelivery == null || estimatedDelivery!.isEmpty) return 'After shipment';
+            try {
+              final d = DateTime.parse(estimatedDelivery!);
+              return DateFormat('EEE, d MMM').format(d);
+            } catch (_) {
+              return estimatedDelivery!;
+            }
+          })();
 
-    final showInfoCard = !shiprocketAvailable ||
-        (onTrackTap == null && (courier ?? '').isEmpty && (trackingNumber ?? '').isEmpty);
+    final showInfoCard = !trackingEnabled;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -269,25 +284,27 @@ class _TrackingCard extends StatelessWidget {
           if ((currentStatus ?? '').isNotEmpty) _kv('Current', currentStatus!),
           if ((courier ?? '').isNotEmpty) _kv('Courier', courier!),
           if ((trackingNumber ?? '').isNotEmpty) _kv('Tracking No.', trackingNumber!),
-          _kv('Estimated Delivery', estimatedLabel ?? 'Calculating...'),
-          if (showInfoCard)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Container(
+           _kvStacked('Estimated Delivery', estimatedLabel),
+           if (showInfoCard)
+             Padding(
+               padding: const EdgeInsets.only(top: 8),
+               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFF3F9),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: const Color(0xFFEA0180).withOpacity(0.3)),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Color(0xFFEA0180), size: 18),
-                    SizedBox(width: 8),
+                    const Icon(Icons.info_outline, color: Color(0xFFEA0180), size: 18),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Tracking will be available once your order is shipped.',
-                        style: TextStyle(fontSize: 12, color: Colors.black54),
+                        (trackingMessage != null && trackingMessage!.trim().isNotEmpty)
+                            ? trackingMessage!.trim()
+                            : 'Tracking will be available once your order is shipped.',
+                        style: const TextStyle(fontSize: 12, color: Colors.black54),
                       ),
                     ),
                   ],
@@ -347,6 +364,24 @@ class _TrackingCard extends StatelessWidget {
               textAlign: TextAlign.right,
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _kvStacked(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.black54, fontSize: 12)),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+            softWrap: true,
           ),
         ],
       ),
@@ -473,6 +508,25 @@ class _TrackingEvents extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (events.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8, bottom: 4),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.03),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: const Text(
+            'Tracking will be available once the courier picks up your order',
+            style: TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+        ),
+      );
+    }
+
     return ExpansionTile(
       tilePadding: EdgeInsets.zero,
       title: const Text(
@@ -480,15 +534,7 @@ class _TrackingEvents extends StatelessWidget {
         style: TextStyle(fontWeight: FontWeight.w600),
       ),
       children: [
-        if (events.isEmpty)
-          const Padding(
-            padding: EdgeInsets.only(bottom: 12),
-            child: Text(
-              'Tracking history will appear here once your\norder is picked up by the courier.',
-            ),
-          )
-        else
-          ...events.map((e) {
+        ...events.map((e) {
             final rawTime = e['time']?.toString();
             String timeLabel = '';
             if (rawTime != null && rawTime.isNotEmpty) {

@@ -46,10 +46,12 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
     if (financial == 'voided') return 'Cancelled';
     if (financial == 'refunded') return 'Refunded';
     if (financial == 'partially_refunded') return 'Partially Refunded';
-    if (fulfillment == 'fulfilled') return 'Delivered';
-    if (fulfillment == 'partial') return 'Partially Shipped';
+    // Shopify "fulfilled" typically means shipped; delivery is tracked separately.
+    if (fulfillment == 'fulfilled' || fulfillment == 'in_progress') return 'Shipped';
+    if (fulfillment == 'partial' || fulfillment == 'partially_fulfilled') return 'Partially Shipped';
     if (financial == 'paid' || financial == 'partially_paid') return 'Confirmed';
-    if (financial == 'pending') return 'Pending Payment';
+    // Keep lifecycle simple: show Confirmed for new orders.
+    if (financial == 'pending') return 'Confirmed';
     return 'Processing';
   }
 
