@@ -265,7 +265,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final data = jsonDecode(response.body);
 
     var options = {
-      'key': 'rzp_live_GzquMVNsjzft2W',
+      'key': 'rzp_test_SNpvRm3HgoZeEj',
       'amount': data['amount'],
       'order_id': data['id'],
       'name': 'Makeup Mystery India',
@@ -607,6 +607,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 /// PRODUCT LIST
                 Column(
                   children: widget.cartItems.map((item) {
+                    final qty = int.tryParse(item["qty"].toString()) ?? 1;
+                    final unitPrice =
+                        double.tryParse(item["price"].toString()) ?? 0;
+                    final lineTotal = unitPrice * qty;
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
                       padding: const EdgeInsets.all(14),
@@ -648,7 +652,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           const SizedBox(width: 20),
 
                           Text(
-                            formatPrice(finalAmount),
+                            formatPrice(lineTotal),
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           )
                         ],
