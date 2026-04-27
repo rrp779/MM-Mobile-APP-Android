@@ -38,6 +38,8 @@ class _AddressSelectorSheetState extends State<AddressSelectorSheet> {
 
     final result = await client.query(
       QueryOptions(
+        fetchPolicy: FetchPolicy.networkOnly,
+        cacheRereadPolicy: CacheRereadPolicy.ignoreAll,
         document: gql(r'''
         query customer($accessToken: String!) {
           customer(customerAccessToken: $accessToken) {
@@ -52,7 +54,10 @@ class _AddressSelectorSheetState extends State<AddressSelectorSheet> {
                   id
                   name
                   address1
+                  address2
                   city
+                  province
+                  country
                   phone
                   zip
                 }
@@ -123,7 +128,10 @@ query customer($accessToken: String!) {
           id
           name
           address1
+          address2
           city
+          province
+          country
           phone
           zip
         }

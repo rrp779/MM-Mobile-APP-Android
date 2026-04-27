@@ -25,6 +25,23 @@ class _CustomerAddressAddState extends State<CustomerAddressAdd> {
 	bool _loading = false;
 	final Map _addressSavedFields = {};
 
+	String _norm(dynamic value) => (value ?? '').toString().trim().toLowerCase();
+	String _normPhone(dynamic value) => (value ?? '').toString().replaceAll(RegExp(r'\D'), '');
+
+	String _addressKey(Map address) {
+		return [
+			_norm(address['firstName']),
+			_norm(address['lastName']),
+			_norm(address['address1']),
+			_norm(address['address2']),
+			_norm(address['city']),
+			_norm(address['province']),
+			_norm(address['country']),
+			_norm(address['zip']),
+			_normPhone(address['phone']),
+		].join('|');
+	}
+
 	InputDecoration input(String hint) {
 		return InputDecoration(
 			hintText: "Enter your ${hint.toLowerCase()}",
@@ -69,6 +86,74 @@ class _CustomerAddressAddState extends State<CustomerAddressAdd> {
 		Map customer = jsonDecode(customerEncoded);
 		String accessToken = customer['accessToken'];
 
+		final Map addressInput = {
+			'firstName': _addressSavedFields['First name'],
+			'lastName': _addressSavedFields['Last name'],
+			'company': _addressSavedFields['Company'],
+			'address1': _addressSavedFields['Address 1'],
+			'address2': _addressSavedFields['Address 2'],
+			'city': _addressSavedFields['City'],
+			'country': _addressSavedFields['Country'],
+			'province': _addressSavedFields['Province'],
+			'zip': _addressSavedFields['Postal/Zip code'],
+			'phone': _addressSavedFields['Phone'],
+		};
+
+		// Prevent duplicates by checking existing addresses before create.
+		final existing = await client.query(
+			QueryOptions(
+				fetchPolicy: FetchPolicy.networkOnly,
+				cacheRereadPolicy: CacheRereadPolicy.ignoreAll,
+				document: gql(r'''
+					query customer($accessToken: String! $limit: Int!) {
+						customer(customerAccessToken: $accessToken) {
+							addresses(first: $limit) {
+								edges {
+									node {
+										firstName
+										lastName
+										address1
+										address2
+										city
+										province
+										country
+										zip
+										phone
+									}
+								}
+							}
+						}
+					}
+				'''),
+				variables: {
+					'accessToken': accessToken,
+					'limit': 50,
+				},
+			),
+		);
+
+		if (!existing.hasException && existing.data != null) {
+			final List edges = existing.data!['customer']?['addresses']?['edges'] ?? [];
+			final newKey = _addressKey(addressInput);
+			final bool isDuplicate = edges.any((edge) {
+				final node = (edge as Map)['node'] as Map?;
+				if (node == null) return false;
+				return _addressKey(node) == newKey;
+			});
+
+			if (isDuplicate) {
+				if (context.mounted) {
+					ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+						content: Text('This address already exists.')
+					));
+				}
+				setState(() {
+					_loading = false;
+				});
+				return;
+			}
+		}
+
 		final result = await client.mutate(
 			MutationOptions(
 				document: gql(r'''
@@ -85,16 +170,7 @@ class _CustomerAddressAddState extends State<CustomerAddressAdd> {
 				variables: {
 					'accessToken': accessToken,
 					'address': {
-						'firstName': _addressSavedFields['First name'],
-						'lastName': _addressSavedFields['Last name'],
-						'company': _addressSavedFields['Company'],
-						'address1': _addressSavedFields['Address 1'],
-						'address2': _addressSavedFields['Address 2'],
-						'city': _addressSavedFields['City'],
-						'country': _addressSavedFields['Country'],
-						'province': _addressSavedFields['Province'],
-						'zip': _addressSavedFields['Postal/Zip code'],
-						'phone': _addressSavedFields['Phone'],
+						...addressInput,
 					}
 				}
 			)
@@ -296,9 +372,9 @@ class _CustomerAddressAddState extends State<CustomerAddressAdd> {
 											shape: RoundedRectangleBorder(
 												borderRadius:
 												BorderRadius.circular(10),
-											),
+									),
 										),
-									onPressed: () async {
+									onPressed: _loading ? null : () async {
 										if (_formKey.currentState!.validate()) {
 											_formKey.currentState!.save();
 											_addNewAddress();

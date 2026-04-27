@@ -37,6 +37,8 @@ class _CustomerAddressesState extends State<CustomerAddresses> {
 
 		final result = await client.query(
 			QueryOptions(
+				fetchPolicy: FetchPolicy.networkOnly,
+				cacheRereadPolicy: CacheRereadPolicy.ignoreAll,
 				document: gql(r'''
 					query customer($accessToken: String! $limit: Int $after: String) {
 						customer (customerAccessToken: $accessToken) {
@@ -86,6 +88,13 @@ class _CustomerAddressesState extends State<CustomerAddresses> {
 			print(result);
 		}
 
+		if (result.hasException || result.data == null) {
+			setState(() {
+				_paginationLoading = false;
+			});
+			return;
+		}
+
 		setState(() {
 			if (after == null) {
 				_addresses = result.data!['customer']['addresses']['edges'];
@@ -103,6 +112,15 @@ class _CustomerAddressesState extends State<CustomerAddresses> {
 	}
 
 	Future<void> _deleteAddress(String id) async {
+		if (id == _defaultAddressId) {
+			if (context.mounted) {
+				ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+					content: Text('Please set another address as default before deleting this one')
+				));
+			}
+			return;
+		}
+
 		final client = GraphQLProvider.of(context).value;
 
 		final prefs = await SharedPreferences.getInstance();
@@ -115,12 +133,25 @@ class _CustomerAddressesState extends State<CustomerAddresses> {
 		Map customer = jsonDecode(customerEncoded);
 		String accessToken = customer['accessToken'];
 
+		// Optimistic UI update: remove locally immediately
+		final previousAddresses = _addresses == null ? null : List.from(_addresses!);
+		setState(() {
+			_addresses = (_addresses ?? [])
+				.where((edge) => edge['node']?['id'] != id)
+				.toList();
+		});
+
 		final result = await client.mutate(
 			MutationOptions(
 				document: gql(r'''
 					mutation customerAddressDelete($accessToken: String! $id: ID!) {
 						customerAddressDelete (customerAccessToken: $accessToken id: $id) {
-
+							deletedCustomerAddressId
+							customerUserErrors {
+								code
+								field
+								message
+							}
 						}
 					}
 				'''),
@@ -132,7 +163,45 @@ class _CustomerAddressesState extends State<CustomerAddresses> {
 		);
 
 		if (kDebugMode) {
-			print(result);
+			print('customerAddressDelete response: ${result.data}');
+			if (result.hasException) {
+				print('customerAddressDelete exception: ${result.exception}');
+			}
+		}
+
+		if (result.hasException || result.data == null) {
+			// Roll back optimistic update and refetch fresh data
+			setState(() {
+				_addresses = previousAddresses;
+			});
+			if (context.mounted) {
+				ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+					content: Text('Failed to delete address. Please try again.')
+				));
+			}
+			_getAddresses();
+			return;
+		}
+
+		final List errors =
+			result.data!['customerAddressDelete']?['customerUserErrors'] ?? [];
+		final String? deletedId =
+			result.data!['customerAddressDelete']?['deletedCustomerAddressId'];
+
+		if (errors.isNotEmpty || deletedId == null) {
+			// Roll back optimistic update and refetch fresh data
+			setState(() {
+				_addresses = previousAddresses;
+			});
+			if (context.mounted) {
+				ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+					content: Text(errors.isNotEmpty
+						? (errors.first['message'] ?? 'Failed to delete address').toString()
+						: 'Failed to delete address. Please try again.')
+				));
+			}
+			_getAddresses();
+			return;
 		}
 
 		if (context.mounted) {

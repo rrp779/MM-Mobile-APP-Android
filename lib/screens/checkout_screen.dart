@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -121,9 +122,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             customer(customerAccessToken: $accessToken) {
               defaultAddress {
                 id
+                firstName
+                lastName
                 name
                 address1
+                address2
                 city
+                province
+                country
                 phone
                 zip
               }
@@ -382,14 +388,53 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     /// ✅ FIX: Safe name parsing
     String fullName = selectedAddress?["name"]?.toString() ?? "Customer";
-    List<String> nameParts = fullName.split(" ");
+    final nameParts = fullName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((e) => e.isNotEmpty)
+        .toList();
 
     String firstName = nameParts.isNotEmpty ? nameParts.first : "Customer";
-    String lastName = nameParts.length > 1 ? nameParts.last : "";
+    String lastName =
+        nameParts.length > 1 ? nameParts.sublist(1).join(" ") : "";
+
+    final address1 = (selectedAddress?["address1"] ?? "").toString().trim();
+    final address2 = (selectedAddress?["address2"] ?? "").toString().trim();
+    final city = (selectedAddress?["city"] ?? "").toString().trim();
+    final province =
+        (selectedAddress?["province"] ?? selectedAddress?["state"] ?? "")
+            .toString()
+            .trim();
+    final zip = (selectedAddress?["zip"] ?? "").toString().trim();
+
+    if (address1.isEmpty || city.isEmpty || province.isEmpty || zip.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Please select a complete address (address, city, state, pincode)",
+          ),
+        ),
+      );
+      return;
+    }
 
     /// ✅ FIX: Get email from customer model (NOT address)
     final customer = context.read<CustomerModel>().customer;
     String email = customer?["email"] ?? "";
+
+    if (kDebugMode) {
+      print('=== ADDRESS BEING SENT ===');
+      print('first_name: ${selectedAddress?["firstName"]}');
+      print('last_name: ${selectedAddress?["lastName"]}');
+      print('address1: ${selectedAddress?["address1"]}');
+      print('address2: ${selectedAddress?["address2"]}');
+      print('city: ${selectedAddress?["city"]}');
+      print('province: ${selectedAddress?["province"]}');
+      print('country: ${selectedAddress?["country"]}');
+      print('pincode: ${selectedAddress?["zip"]}');
+      print('phone: ${selectedAddress?["phone"]}');
+      print('=========================');
+    }
 
     final verify = await http.post(
       Uri.parse("${BackendConfig.baseUrl}/payment/verify"),
@@ -405,10 +450,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         "email": email,
         "phone": selectedAddress?["phone"] ?? "",
 
-        "address1": selectedAddress?["address1"] ?? "",
-        "city": selectedAddress?["city"] ?? "",
-        "state": "Gujarat",
-        "pincode": selectedAddress?["zip"] ?? "",
+        "address1": address1,
+        "address2": address2,
+        "city": city,
+        "state": province,
+        "province": province,
+        "country": (selectedAddress?["country"] ?? "India").toString(),
+        "pincode": zip,
 
         "amount": (finalAmount * 100).toInt(),
 
