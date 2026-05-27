@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../customer/customer_address_add.dart';
 
 class AddressSelectorSheet extends StatefulWidget {
 
@@ -21,15 +22,30 @@ class _AddressSelectorSheetState extends State<AddressSelectorSheet> {
   List addresses = [];
   String? selectedId;
   bool loading = true;
+  String? loadError;
 
   /// LOAD ADDRESSES
   Future<void> loadAddresses() async {
+    if (!mounted) return;
+    setState(() {
+      loading = true;
+      loadError = null;
+    });
 
     final prefs = await SharedPreferences.getInstance();
     String? customer = prefs.getString("customer");
 
 
-    if (customer == null) return;
+    if (customer == null) {
+      if (!mounted) return;
+      setState(() {
+        addresses = [];
+        selectedId = null;
+        loading = false;
+        loadError = "Please login to select or add an address.";
+      });
+      return;
+    }
 
     Map data = jsonDecode(customer);
     String accessToken = data["accessToken"];
@@ -62,14 +78,28 @@ class _AddressSelectorSheetState extends State<AddressSelectorSheet> {
         }
       '''),
         variables: {"accessToken": accessToken},
+        fetchPolicy: FetchPolicy.networkOnly,
+        cacheRereadPolicy: CacheRereadPolicy.ignoreAll,
+        errorPolicy: ErrorPolicy.all,
       ),
     );
+
+    if (result.hasException) {
+      if (!mounted) return;
+      setState(() {
+        addresses = [];
+        selectedId = null;
+        loading = false;
+        loadError = "Could not load addresses. Please try again, or add a new address.";
+      });
+      return;
+    }
 
     final defaultAddress =
     result.data?["customer"]?["defaultAddress"]?["id"];
 
     final fetchedAddresses =
-    result.data!["customer"]["addresses"]["edges"];
+    result.data?["customer"]?["addresses"]?["edges"] ?? [];
 
     String normalizeId(String id) {
       return id.split('/').last;
@@ -110,24 +140,12 @@ class _AddressSelectorSheetState extends State<AddressSelectorSheet> {
     await client.mutate(
       MutationOptions(
         document: gql(r'''
-query customer($accessToken: String!) {
-  customer(customerAccessToken: $accessToken) {
-
-    defaultAddress {
-      id
-    }
-
-    addresses(first: 20) {
-      edges {
-        node {
-          id
-          name
-          address1
-          city
-          phone
-          zip
-        }
-      }
+mutation customerDefaultAddressUpdate($accessToken: String!, $addressId: ID!) {
+  customerDefaultAddressUpdate(customerAccessToken: $accessToken, addressId: $addressId) {
+    customerUserErrors {
+      code
+      field
+      message
     }
   }
 }
@@ -138,6 +156,13 @@ query customer($accessToken: String!) {
         },
       ),
     );
+  }
+
+  Future<void> openAddAddress() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const CustomerAddressAdd()),
+    );
+    await loadAddresses();
   }
 
   @override
@@ -173,20 +198,100 @@ query customer($accessToken: String!) {
             ),
           ),
 
-          const Text(
-            "Select Address",
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  "Select Address",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: openAddAddress,
+                child: const Text(
+                  "Add Address",
+                  style: TextStyle(
+                    color: Color(0xFFEA0180),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ),
 
           const SizedBox(height: 20),
 
           Expanded(
-            child: ListView.builder(
-              itemCount: addresses.length,
-              itemBuilder: (context, index) {
+            child: (loadError != null)
+                ? Center(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              loadError!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.grey, fontSize: 12),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFEA0180),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            onPressed: openAddAddress,
+                            child: const Text(
+                              "Add Address",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : addresses.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              "No addresses found.",
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                            const SizedBox(height: 12),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFEA0180),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              onPressed: openAddAddress,
+                              child: const Text(
+                                "Add Address",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: addresses.length,
+                        itemBuilder: (context, index) {
 
                 String normalizeId(String id) {
                   return id.split('/').last;

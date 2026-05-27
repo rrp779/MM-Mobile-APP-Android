@@ -357,6 +357,265 @@ class CartProvider with ChangeNotifier {
   double get totalDiscount {
     return totalMrp - totalSellingPrice;
   }
+
+  /// ---------------- DISCOUNT CODES ----------------
   
+  String? _appliedCoupon;
+  double _couponDiscount = 0;
+  
+  String? get cartId => _cartId;
+  String? get appliedCoupon => _appliedCoupon;
+  double get couponDiscount => _couponDiscount;
+
+  double _sumDiscountAllocations(List? allocations) {
+    if (allocations == null) return 0;
+    double sum = 0;
+    for (final allocation in allocations) {
+      final amount = allocation['discountedAmount']?['amount'];
+      sum += double.tryParse(amount?.toString() ?? '0') ?? 0;
+    }
+    return sum;
+  }
+
+  void _syncCouponStateFromCart(Map<String, dynamic> cart) {
+    final discountCodes = cart['discountCodes'] as List? ?? [];
+    final applicableCodes = discountCodes
+        .where((entry) => entry['applicable'] == true)
+        .toList();
+
+    if (applicableCodes.isEmpty) {
+      _appliedCoupon = null;
+      _couponDiscount = 0;
+      return;
+    }
+
+    _appliedCoupon = applicableCodes.first['code']?.toString();
+
+    // subtotalAmount is BEFORE cart-level discount codes; use allocations/totalAmount.
+    double discount = _sumDiscountAllocations(
+      cart['discountAllocations'] as List?,
+    );
+
+    if (discount <= 0) {
+      final totalRaw = cart['cost']?['totalAmount']?['amount'];
+      final double cartTotal =
+          double.tryParse(totalRaw?.toString() ?? '0') ?? totalSellingPrice;
+      discount = totalSellingPrice - cartTotal;
+    }
+
+    _couponDiscount = discount > 0 ? discount : 0;
+  }
+
+  String? _messageFromDiscountWarnings(List? warnings) {
+    if (warnings == null || warnings.isEmpty) return null;
+
+    final code = warnings.first['code']?.toString() ?? '';
+    final message = warnings.first['message']?.toString();
+
+    switch (code) {
+      case 'DISCOUNT_CURRENTLY_INACTIVE':
+        return "This coupon is not active for the mobile app. In Shopify Admin, edit the discount and enable it for your Headless / custom app sales channel (not only Online Store).";
+      case 'DISCOUNT_CUSTOMER_USAGE_LIMIT_REACHED':
+      case 'DISCOUNT_USAGE_LIMIT_REACHED':
+        return "You have already used this coupon.";
+      case 'DISCOUNT_CUSTOMER_NOT_ELIGIBLE':
+      case 'DISCOUNT_ELIGIBLE_CUSTOMER_MISSING':
+        return "This coupon is not available for your account.";
+      case 'DISCOUNT_NO_ENTITLED_LINE_ITEMS':
+        return "This coupon does not apply to the items in your cart.";
+      case 'DISCOUNT_NOT_FOUND':
+        return "Invalid coupon code.";
+      case 'DISCOUNT_CODE_NOT_HONOURED':
+        return message ?? "This coupon cannot be applied to your cart.";
+      default:
+        return message;
+    }
+  }
+
+  Future<String?> applyDiscountCode(String code) async {
+    if (_cartId == null) return "Cart is empty";
+
+    final normalizedCode = code.trim().toUpperCase();
+    if (normalizedCode.isEmpty) return "Enter a coupon code";
+
+    _isLoading = true;
+    notifyListeners();
+
+    final client = getShopifyClient();
+
+    const mutation = r'''
+      mutation cartDiscountCodesUpdate($cartId: ID!, $discountCodes: [String!]) {
+        cartDiscountCodesUpdate(cartId: $cartId, discountCodes: $discountCodes) {
+          cart {
+            discountCodes {
+              code
+              applicable
+            }
+            discountAllocations {
+              discountedAmount { amount }
+              ... on CartCodeDiscountAllocation {
+                code
+              }
+            }
+            cost {
+              subtotalAmount { amount }
+              totalAmount { amount }
+            }
+          }
+          userErrors {
+            message
+          }
+          warnings {
+            code
+            message
+          }
+        }
+      }
+    ''';
+
+    final result = await client.mutate(
+      MutationOptions(
+        document: gql(mutation),
+        variables: {
+          "cartId": _cartId,
+          "discountCodes": [normalizedCode],
+        },
+      ),
+    );
+
+    _isLoading = false;
+
+    if (result.hasException) {
+      notifyListeners();
+      return "Network error";
+    }
+
+    final payload = result.data?['cartDiscountCodesUpdate'];
+    final userErrors = payload?['userErrors'];
+    if (userErrors != null && userErrors.isNotEmpty) {
+      notifyListeners();
+      return userErrors[0]['message'];
+    }
+
+    final cart = payload?['cart'];
+    if (cart == null) {
+      notifyListeners();
+      return "Failed to apply coupon";
+    }
+
+    final discountCodes = cart['discountCodes'] as List? ?? [];
+
+    if (discountCodes.isEmpty) {
+      notifyListeners();
+      return "Invalid coupon code";
+    }
+
+    final appliedCode = discountCodes.firstWhere(
+      (entry) =>
+          (entry['code']?.toString().toUpperCase() ?? '') == normalizedCode,
+      orElse: () => discountCodes.first,
+    );
+
+    if (appliedCode['applicable'] != true) {
+      await removeDiscountCode();
+      notifyListeners();
+      return _messageFromDiscountWarnings(payload?['warnings'] as List?) ??
+          "Coupon is not applicable to your cart";
+    }
+
+    _syncCouponStateFromCart(cart);
+
+    notifyListeners();
+    return null;
+  }
+
+  Future<void> removeDiscountCode() async {
+    if (_cartId == null) return;
+    
+    _isLoading = true;
+    notifyListeners();
+
+    final client = getShopifyClient();
+
+    const mutation = r'''
+      mutation cartDiscountCodesUpdate($cartId: ID!) {
+        cartDiscountCodesUpdate(cartId: $cartId, discountCodes: []) {
+          cart {
+            id
+          }
+        }
+      }
+    ''';
+
+    await client.mutate(
+      MutationOptions(
+        document: gql(mutation),
+        variables: {
+          "cartId": _cartId,
+        },
+      ),
+    );
+
+    _appliedCoupon = null;
+    _couponDiscount = 0;
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  Future<void> updateBuyerIdentity(String customerAccessToken) async {
+    if (_cartId == null) return;
+
+    final client = getShopifyClient();
+    const mutation = r'''
+      mutation cartBuyerIdentityUpdate($cartId: ID!, $buyerIdentity: CartBuyerIdentityInput!) {
+        cartBuyerIdentityUpdate(cartId: $cartId, buyerIdentity: $buyerIdentity) {
+          cart {
+            id
+            discountCodes {
+              code
+              applicable
+            }
+            discountAllocations {
+              discountedAmount { amount }
+              ... on CartCodeDiscountAllocation {
+                code
+              }
+            }
+            cost {
+              totalAmount { amount }
+            }
+          }
+        }
+      }
+    ''';
+
+    final result = await client.mutate(
+      MutationOptions(
+        document: gql(mutation),
+        variables: {
+          "cartId": _cartId,
+          "buyerIdentity": {
+            "customerAccessToken": customerAccessToken,
+          }
+        },
+      ),
+    );
+
+    final cart = result.data?['cartBuyerIdentityUpdate']?['cart'];
+    if (cart != null) {
+      _syncCouponStateFromCart(cart);
+      notifyListeners();
+    }
+  }
+
+  void resetCartState() {
+    _cartId = null;
+    _checkoutUrl = null;
+    _lines = [];
+    _appliedCoupon = null;
+    _couponDiscount = 0;
+    _isLoading = false;
+    notifyListeners();
+  }
 }
 

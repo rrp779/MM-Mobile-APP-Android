@@ -145,7 +145,10 @@ class _CouponBottomSheetState extends State<CouponBottomSheet> {
 
           return GestureDetector(
             onTap: isValid
-                ? () => Navigator.pop(context, coupon)
+                ? () => Navigator.pop(
+                      context,
+                      coupon["code"].toString().toUpperCase(),
+                    )
                 : null,
             child: Container(
               margin: const EdgeInsets.only(bottom: 12),

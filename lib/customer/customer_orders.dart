@@ -91,9 +91,19 @@ class _CustomerOrdersState extends State<CustomerOrders> {
                 discountApplications(first: 10) {
                   edges {
                     node {
+                      __typename
+                      ... on DiscountCodeApplication {
+                        code
+                      }
+                      ... on AutomaticDiscountApplication {
+                        title
+                      }
                       value {
                         ... on MoneyV2 {
                           amount
+                        }
+                        ... on PricingPercentageValue {
+                          percentage
                         }
                       }
                     }

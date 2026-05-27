@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
@@ -425,6 +427,13 @@ class CartPage extends StatelessWidget {
 
                   /// ❌ User closed sheet
                   if (result != true) return;
+
+                  customer = prefs.getString("customer");
+                }
+
+                if (customer != null) {
+                  final customerData = jsonDecode(customer);
+                  await cart.updateBuyerIdentity(customerData["accessToken"]);
                 }
 
                 /// ✅ CONTINUE CHECKOUT (same as your code)

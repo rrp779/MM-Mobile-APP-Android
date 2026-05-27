@@ -23,6 +23,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
+    const rupee = '\u20B9';
 
     final items = widget.order['lineItems']['edges'];
     final address = widget.order['shippingAddress'] ?? {};
@@ -42,6 +43,35 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
     final total =
         double.tryParse(widget.order['totalPriceV2']?['amount'] ?? "0") ?? 0;
 
+    final discountEdges = widget.order['discountApplications']?['edges'] ?? [];
+    final List<String> appliedDiscountLabels = [];
+    double couponDiscountAmount = 0;
+    final List<String> couponPercentages = [];
+    for (final edge in discountEdges) {
+      final node = edge?['node'];
+      if (node == null) continue;
+      final typeName = node['__typename']?.toString();
+      final code = node['code']?.toString();
+      final title = node['title']?.toString();
+      if (typeName == 'DiscountCodeApplication' && code != null && code.isNotEmpty) {
+        appliedDiscountLabels.add(code.toUpperCase());
+      } else if (typeName == 'AutomaticDiscountApplication' && title != null && title.isNotEmpty) {
+        appliedDiscountLabels.add(title);
+      }
+
+      final value = node['value'];
+      if (value is Map) {
+        final moneyAmount = value['amount'];
+        if (moneyAmount != null) {
+          couponDiscountAmount += double.tryParse(moneyAmount.toString()) ?? 0;
+        }
+        final pct = value['percentage'];
+        if (pct != null) {
+          couponPercentages.add("${pct.toString()}%");
+        }
+      }
+    }
+
     /// Calculate discount from compareAtPrice
     double totalMrp = 0;
     double discountedMrp = 0;
@@ -53,9 +83,11 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
           node['variant']?['price']?['amount'] ?? "0") ??
           0;
 
-      final compareAt = double.tryParse(
-          node['variant']?['compareAtPrice']?['amount'] ?? "0") ??
-          price;
+      final compareAtRaw = node['variant']?['compareAtPrice']?['amount'];
+      final compareAtParsed = double.tryParse(compareAtRaw?.toString() ?? "");
+      final compareAt = (compareAtParsed == null || compareAtParsed <= 0)
+          ? price
+          : compareAtParsed;
 
       final quantity = node['quantity'] ?? 1;
 
@@ -93,6 +125,9 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
           bool isBold = false,
           Color? valueColor,
         }) {
+      final safeValue = value
+          .replaceAll('Ã¢â€šÂ¹', rupee)
+          .replaceAll('â‚¹', rupee);
       return Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -105,7 +140,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
             ),
           ),
           Text(
-            value,
+            safeValue,
             style: TextStyle(
               fontSize: 14,
               fontWeight:
@@ -565,6 +600,23 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                       ),
 
                       const SizedBox(height: 8),
+
+                      if (couponDiscountAmount > 0 ||
+                          couponPercentages.isNotEmpty ||
+                          appliedDiscountLabels.isNotEmpty) ...[
+                        _priceRow(
+                          appliedDiscountLabels.isNotEmpty
+                              ? "Coupon (${appliedDiscountLabels.join(", ")})"
+                              : "Coupon",
+                          couponDiscountAmount > 0
+                              ? "-â‚¹${couponDiscountAmount.toStringAsFixed(0)}"
+                              : couponPercentages.isNotEmpty
+                                  ? couponPercentages.join(", ")
+                                  : "",
+                          valueColor: Colors.green,
+                        ),
+                        const SizedBox(height: 8),
+                      ],
 
                       /// SHIPPING
                       _priceRow(

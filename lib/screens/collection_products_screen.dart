@@ -341,26 +341,49 @@ class _CollectionProductsScreenState extends State<CollectionProductsScreen> {
               ),
 
               Expanded(
-                child: GridView.builder(
-                  controller: _scrollController,
-                  itemCount: products.length + (_isLoadingMore ? 2 : 0),
-                  gridDelegate:
-                  const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 0.55,
-                  ),
-                  itemBuilder: (_, index) {
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    const crossAxisCount = 2;
+                    const spacing = 16.0;
+                    const horizontalPadding = 16.0;
 
-                    if (index >= products.length) {
-                      return const ProductCardSkeleton();
-                    }
+                    final textScale = MediaQuery.textScaleFactorOf(context);
+                    final gridWidth = constraints.maxWidth - (horizontalPadding * 2);
+                    final itemWidth = (gridWidth - (spacing * (crossAxisCount - 1))) / crossAxisCount;
 
-                    final product = products[index];
+                    // ProductCard needs a bit of extra height on smaller devices / larger text scales
+                    // to avoid the "Quick View" button being clipped.
+                    final extra = (textScale - 1).clamp(0.0, 0.6) * 28.0;
+                    final mainAxisExtent = itemWidth + 175.0 + extra;
 
-                    return ProductCard(
-                      key: ValueKey(product.id),
-                      product: product,
-                      collectionTitle: widget.collectionTitle,
+                    return GridView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.fromLTRB(
+                        horizontalPadding,
+                        0,
+                        horizontalPadding,
+                        16,
+                      ),
+                      itemCount: products.length + (_isLoadingMore ? 2 : 0),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        mainAxisSpacing: spacing,
+                        crossAxisSpacing: spacing,
+                        mainAxisExtent: mainAxisExtent,
+                      ),
+                      itemBuilder: (_, index) {
+                        if (index >= products.length) {
+                          return const ProductCardSkeleton();
+                        }
+
+                        final product = products[index];
+
+                        return ProductCard(
+                          key: ValueKey(product.id),
+                          product: product,
+                          collectionTitle: widget.collectionTitle,
+                        );
+                      },
                     );
                   },
                 ),

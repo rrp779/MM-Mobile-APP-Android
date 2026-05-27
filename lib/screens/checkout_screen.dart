@@ -10,6 +10,8 @@ import '../customer/customer_orders.dart';
 import '../widgets/address_selector_sheet.dart';
 import '../widgets/coupon_bottom_sheet.dart';
 import '../screens/login_screen.dart';
+import '../config/backend_config.dart';
+import '../providers/cart_provider.dart';
 
 class CheckoutScreen extends StatefulWidget {
 
@@ -38,13 +40,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Map? selectedAddress;
 
   late Razorpay _razorpay;
+  String? _razorpayKeyId;
 
   String formatPrice(double amount) {
     return "₹ ${amount.toStringAsFixed(2)}";
   }
 
-  String? appliedCoupon;
-  double couponDiscount = 0;
   TextEditingController couponController = TextEditingController();
 
   @override
@@ -58,6 +59,24 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, handleExternalWallet);
 
     checkLogin();
+    fetchRazorpayConfig();
+  }
+
+  Future<void> fetchRazorpayConfig() async {
+    try {
+      final resp = await http.get(
+        Uri.parse("${BackendConfig.baseUrl}/payment/config"),
+      );
+      if (resp.statusCode != 200) return;
+      final data = jsonDecode(resp.body);
+      final keyId = (data["key_id"] ?? "").toString().trim();
+      if (!mounted) return;
+      setState(() {
+        _razorpayKeyId = keyId.isEmpty ? null : keyId;
+      });
+    } catch (_) {
+      // Ignore; we'll show a message when user taps Pay Now.
+    }
   }
 
   /// LOGIN CHECK
@@ -100,6 +119,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       isLoadingUser = false;
     });
 
+    final cartProvider = context.read<CartProvider>();
+    await cartProvider.updateBuyerIdentity(data["accessToken"]);
+
     loadDefaultAddress(data["accessToken"]);
   }
 
@@ -127,6 +149,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         variables: {
           "accessToken": accessToken
         },
+        fetchPolicy: FetchPolicy.networkOnly,
+        cacheRereadPolicy: CacheRereadPolicy.ignoreAll,
+        errorPolicy: ErrorPolicy.all,
       ),
     );
 
@@ -159,51 +184,33 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-  void applySelectedCoupon(Map coupon) {
+  void applySelectedCoupon(dynamic coupon) async {
+    final code = coupon is Map
+        ? coupon['code']?.toString() ?? ''
+        : coupon.toString();
 
-    final type = coupon["discount_type"];
-    final value = double.parse(coupon["value"].toString().replaceAll("-", ""));
+    if (code.trim().isEmpty) return;
 
-    final minimum = coupon["minimum"] != null
-        ? double.tryParse(coupon["minimum"].toString())
-        : null;
+    final cartProvider = context.read<CartProvider>();
+    final error = await cartProvider.applyDiscountCode(code);
 
-    if (minimum != null && widget.totalAmount < minimum) {
+    if (!mounted) return;
+
+    if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Minimum order ₹${minimum.toInt()} required")),
+        SnackBar(content: Text(error)),
       );
-      return;
+    } else {
+      final appliedCode = cartProvider.appliedCoupon ?? code.toUpperCase();
+      couponController.text = appliedCode;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Coupon $appliedCode applied! You save ${formatPrice(cartProvider.couponDiscount)}",
+          ),
+        ),
+      );
     }
-
-    double discount = 0;
-
-    if (type == "fixed_amount") {
-      discount = value;
-    } else if (type == "percentage") {
-      if (type == "percentage") {
-
-        /// 🎁 FREE GIFT CASE
-        if (value == 100) {
-          discount = 0; // ❗ DO NOT DISCOUNT PRICE
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Free gift will be added to your order 🎁")),
-          );
-
-        } else {
-          discount = (widget.totalAmount * value) / 100;
-        }
-      }
-    }
-
-    setState(() {
-      appliedCoupon = coupon["code"];
-      couponDiscount = discount;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Coupon ${coupon["code"]} applied")),
-    );
   }
 
   /// OPEN RAZORPAY
@@ -217,7 +224,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
 
     /// ✅ USE SAME CALCULATION
-    double subtotalAfterDiscount = widget.totalAmount - couponDiscount;
+    final cartProvider = context.read<CartProvider>();
+    double subtotalAfterDiscount = widget.totalAmount - cartProvider.couponDiscount;
     double shipping = subtotalAfterDiscount < 1500 ? 80 : 0;
     double finalAmount = subtotalAfterDiscount + shipping;
 
@@ -225,8 +233,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     final customer = context.read<CustomerModel>().customer;
 
+    if (_razorpayKeyId == null) {
+      await fetchRazorpayConfig();
+    }
+    if (_razorpayKeyId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Payment config missing. Please try again later.")),
+      );
+      return;
+    }
+
     final response = await http.post(
-      Uri.parse("https://mm-backend-production-f67e.up.railway.app/api/payment/create-order"),
+      Uri.parse("${BackendConfig.baseUrl}/payment/create-order"),
       headers: {"Content-Type": "application/json"},
       body: jsonEncode({
         "amount": amountInPaise,
@@ -236,21 +255,37 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         }).toList(),
         "total_mrp": widget.totalMrp,
         "discount": widget.totalDiscount,
-        "coupon_discount": couponDiscount,
+        "coupon_discount": cartProvider.couponDiscount,
         "shipping": shipping,
         "email": customer?["email"] ?? "",
         "phone": selectedAddress?["phone"] ?? "",
       }),
     );
 
+    if (response.statusCode != 200) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Unable to start payment. Please try again.")),
+      );
+      return;
+    }
+
     final data = jsonDecode(response.body);
+    if (data == null || data["id"] == null || data["amount"] == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Payment init failed. Please try again.")),
+      );
+      return;
+    }
 
     var options = {
-      'key': 'rzp_live_SXKF8Wmi4nJ1SE',
+      'key': _razorpayKeyId,
       'amount': data['amount'],
       'order_id': data['id'],
       'name': 'Makeup Mystery India',
       'description': 'Order Payment',
+      'timeout': 300,
       'prefill': {
         'contact': selectedAddress?["phone"] ?? "",
         'email': customer?["email"] ?? "",
@@ -349,6 +384,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   /// PAYMENT SUCCESS
   void handlePaymentSuccess(PaymentSuccessResponse response) async {
+    try {
 
     if (selectedAddress == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -357,9 +393,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       return;
     }
 
-    double subtotalAfterDiscount = widget.totalAmount - couponDiscount;
+    final cartProvider = context.read<CartProvider>();
+    double subtotalAfterDiscount = widget.totalAmount - cartProvider.couponDiscount;
     double shipping = subtotalAfterDiscount < 1500 ? 80 : 0;
     double finalAmount = subtotalAfterDiscount + shipping;
+    final appliedCoupon = (cartProvider.appliedCoupon ?? couponController.text)
+        .toString()
+        .trim()
+        .toUpperCase();
 
     /// ✅ FIX: Safe name parsing
     String fullName = selectedAddress?["name"]?.toString() ?? "Customer";
@@ -373,7 +414,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     String email = customer?["email"] ?? "";
 
     final verify = await http.post(
-      Uri.parse("https://mm-backend-production-f67e.up.railway.app/api/payment/verify"),
+      Uri.parse("${BackendConfig.baseUrl}/payment/verify"),
       headers: {"Content-Type": "application/json"},
       body: jsonEncode({
         "razorpay_order_id": response.orderId,
@@ -392,6 +433,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         "pincode": selectedAddress?["zip"] ?? "",
 
         "amount": (finalAmount * 100).toInt(),
+
+        "couponCode": appliedCoupon.isEmpty ? null : appliedCoupon,
+        "couponDiscount": cartProvider.couponDiscount,
+        "shippingAmount": shipping,
+        "totalMrp": widget.totalMrp,
+        "productDiscount": widget.totalDiscount,
       }),
     );
 
@@ -401,18 +448,49 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove("cart"); // 🔥 important
+      cartProvider.resetCartState();
+      couponController.clear();
       showSuccessDialog();
     } else {
 
+      final details = data["details"];
+      final detailsText = (details == null)
+          ? null
+          : (details is String)
+              ? details
+              : details.toString();
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(data["message"] ?? "Verification Failed")),
+        SnackBar(
+          content: Text(
+            detailsText?.isNotEmpty == true
+                ? detailsText!
+                : (data["message"] ?? "Verification Failed"),
+          ),
+        ),
       );
 
+    }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Payment completed, but order confirmation failed. Please contact support with your payment ID.",
+          ),
+        ),
+      );
     }
   }
 
   void handlePaymentError(PaymentFailureResponse response) {
-    print("Payment Error ${response.message}");
+    if (!mounted) return;
+    final msg = (response.message?.isNotEmpty ?? false)
+        ? response.message!
+        : "Payment failed or timed out. If amount was deducted, it will be refunded in 5-7 working days.";
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
+    );
   }
 
   void handleExternalWallet(ExternalWalletResponse response) {
@@ -428,10 +506,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
 
+    final cartProvider = context.watch<CartProvider>();
     final customer = context.watch<CustomerModel>().customer;
     final userName = customer?['firstName'] ?? "Customer";
     /// ✅ GLOBAL CALCULATION (IMPORTANT)
-    double subtotalAfterDiscount = widget.totalAmount - couponDiscount;
+    double subtotalAfterDiscount = widget.totalAmount - cartProvider.couponDiscount;
     double shipping = subtotalAfterDiscount < 1500 ? 80 : 0;
     double finalAmount = subtotalAfterDiscount + shipping;
 
@@ -490,21 +569,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
     void applyManualCoupon() async {
       String code = couponController.text.trim().toUpperCase();
-      final response = await http.get(
-        Uri.parse("https://mm-backend-production-f67e.up.railway.app/api/shopify/coupons"),
-      );
-      List coupons = jsonDecode(response.body);
-      final match = coupons.firstWhere(
-            (c) => c["code"].toString().toUpperCase() == code,
-        orElse: () => null,
-      );
-      if (match == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Invalid Coupon")),
-        );
-        return;
-      }
-      applySelectedCoupon(match);
+      if (code.isEmpty) return;
+      applySelectedCoupon(code);
     }
     return Scaffold(
       backgroundColor: const Color(0xfff6f6f6),
@@ -701,7 +767,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       ),
 
                       /// APPLIED COUPON
-                      if (appliedCoupon != null)
+                      if (cartProvider.appliedCoupon != null)
                         Container(
                           margin: const EdgeInsets.only(top: 10),
                           padding: const EdgeInsets.all(10),
@@ -713,15 +779,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                "Applied: $appliedCoupon",
+                                "Applied: ${cartProvider.appliedCoupon}",
                                 style: const TextStyle(color: Colors.green),
                               ),
                               GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    appliedCoupon = null;
-                                    couponDiscount = 0;
-                                  });
+                                onTap: () async {
+                                  await cartProvider.removeDiscountCode();
+                                  couponController.clear();
                                 },
                                 child: const Icon(Icons.close, size: 18),
                               )
@@ -752,11 +816,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         valueColor: Colors.green,
                       ),
 
-                      if (couponDiscount > 0) ...[
+                      if (cartProvider.couponDiscount > 0) ...[
                         const SizedBox(height: 8),
                         _priceRow(
                           "Additional Discount",
-                          "-${formatPrice(couponDiscount)}",
+                          "-${formatPrice(cartProvider.couponDiscount)}",
                           valueColor: Colors.green,
                         ),
                       ],
@@ -770,16 +834,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         valueColor: shipping == 0 ? Colors.green : null,
                       ),
 
-                      if (couponDiscount > 0) ...[
+                      if (cartProvider.couponDiscount > 0) ...[
                         const SizedBox(height: 8),
                         Container(
-                          padding: const EdgeInsets.all(10),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
                             color: Colors.green.shade50,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            "🎉 You saved ${formatPrice(couponDiscount)}",
+                            "🎉 You saved ${formatPrice(cartProvider.couponDiscount)}",
                             style: const TextStyle(color: Colors.green),
                           ),
                         ),

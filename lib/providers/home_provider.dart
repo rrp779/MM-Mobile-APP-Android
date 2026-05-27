@@ -1,3 +1,4 @@
+import 'dart:async'; // FIXED: Add async import for TimeoutException
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -10,9 +11,14 @@ class HomeProvider extends ChangeNotifier {
   List<HomeSection> _sections = [];
   bool _isLoading = false;
   bool _sectionsLoaded = false;
+  // FIXED: Added error state variables
+  bool _hasError = false;
+  String _errorMessage = '';
 
   List<HomeSection> get sections => _sections;
   bool get isLoading => _isLoading;
+  bool get hasError => _hasError; // FIXED: Added getter
+  String get errorMessage => _errorMessage; // FIXED: Added getter
 
   /// 🔥 CENTRAL PRODUCT CACHE (FIXED: removed final)
   Map<String, Product> _productsMap = {};
@@ -149,16 +155,19 @@ class HomeProvider extends ChangeNotifier {
       🔹 FETCH SECTIONS
   ========================================================== */
 
-  Future<void> fetchSections() async {
-    if (_sectionsLoaded) return;
+  // FIXED: Added optional parameter and comprehensive error handling
+  Future<void> fetchSections({bool forceRefresh = false}) async {
+    if (_sectionsLoaded && !forceRefresh) return;
 
     _isLoading = true;
+    _hasError = false;
+    _errorMessage = '';
     notifyListeners();
 
     try {
       final response = await http.get(
         Uri.parse("${BackendConfig.baseUrl}/sections"),
-      );
+      ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final List data = jsonDecode(response.body);
@@ -173,8 +182,16 @@ class HomeProvider extends ChangeNotifier {
         /// 🔥 Preload all products
         final ids = extractAllProductIds();
         await fetchProductsBulk(ids); // ✅ IMPORTANT: await
+      } else {
+        _hasError = true;
+        _errorMessage = 'Server error (${response.statusCode}). Pull to retry.';
       }
+    } on TimeoutException {
+      _hasError = true;
+      _errorMessage = 'Connection timed out. Pull to retry.';
     } catch (e) {
+      _hasError = true;
+      _errorMessage = 'Failed to load. Pull to retry.';
       debugPrint("❌ Sections fetch error: $e");
     }
 

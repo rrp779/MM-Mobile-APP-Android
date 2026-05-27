@@ -38,11 +38,8 @@ class _HomeScreenState extends State<HomeScreen>
 
       if (provider.sections.isEmpty) {
         /// 🔥 preload products (BIG speed boost)
-        await Future.wait([
-          provider.fetchSections(),
-        ]);
-        final ids = provider.extractAllProductIds();
-        provider.fetchProductsBulk(ids);
+        // FIXED: Removed redundant product fetch, fetchSections handles it
+        await provider.fetchSections();
       }
     });
   }
@@ -142,7 +139,8 @@ class _HomeScreenState extends State<HomeScreen>
         child: RefreshIndicator(
           onRefresh: () async {
             final provider = context.read<HomeProvider>();
-            await provider.fetchSections();
+            // FIXED: Added forceRefresh: true
+            await provider.fetchSections(forceRefresh: true);
           },
           child: isLoading
               ? const Center(child: CircularProgressIndicator())
@@ -257,11 +255,51 @@ class _HomeScreenState extends State<HomeScreen>
     final visibleSections = sections.where((s) => s.visible).toList();
 
     if (visibleSections.isEmpty) {
+      // FIXED: Contextual error message and retry button
+      final provider = context.read<HomeProvider>();
+      
+      if (provider.hasError) {
+        return [
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: 200,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 48, color: Colors.grey),
+                    const SizedBox(height: 16),
+                    Text(provider.errorMessage),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFEA0180),
+                      ),
+                      onPressed: () => provider.fetchSections(forceRefresh: true),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
+        ];
+      }
+
       return [
         const SliverToBoxAdapter(
           child: SizedBox(
             height: 200,
-            child: Center(child: Text("No data available")),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.inbox, size: 48, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text("No data available"),
+                ],
+              ),
+            ),
           ),
         )
       ];
