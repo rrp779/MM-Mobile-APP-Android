@@ -104,19 +104,17 @@ class _CollectionProductsScreenState extends State<CollectionProductsScreen> {
           variables: widget.collectionId.startsWith("gid://")
               ? {
             "id": widget.collectionId,
-            "first": 40,
+            "first": 100,
             "after": null,
           }
               : {
             "handle": _normalizeHandle(
               widget.collectionHandle ?? widget.collectionId,
             ),
-            "first": 40,
+            "first": 100,
             "after": null,
             "sortKey": _sortKey,
             "reverse": _reverse,
-            "minPrice": _priceRange.start,
-            "maxPrice": _priceRange.end,
           },
         ),
 
@@ -133,7 +131,7 @@ class _CollectionProductsScreenState extends State<CollectionProductsScreen> {
                 crossAxisCount: 2,
                 mainAxisSpacing: 16,
                 crossAxisSpacing: 16,
-                childAspectRatio: 0.55,
+                childAspectRatio: 0.50,
               ),
               itemBuilder: (_, __) => const ProductCardSkeleton(),
             );
@@ -639,9 +637,7 @@ query GetCollectionProducts(
   $first: Int!,
   $after: String,
   $sortKey: ProductCollectionSortKeys,
-  $reverse: Boolean,
-  $minPrice: Float,
-  $maxPrice: Float
+  $reverse: Boolean
 ) {
   collectionByHandle(handle: $handle) {
     id
@@ -652,7 +648,6 @@ query GetCollectionProducts(
       after: $after
       sortKey: $sortKey
       reverse: $reverse
-      filters: { price: { min: $minPrice, max: $maxPrice } }
     ) {
       pageInfo {
         hasNextPage

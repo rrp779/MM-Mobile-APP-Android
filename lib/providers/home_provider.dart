@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../models/home_section.dart';
 import '../config/backend_config.dart';
 import '../models/product.dart';
+import '../data/default_home_sections.dart';
 
 class HomeProvider extends ChangeNotifier {
   List<HomeSection> _sections = [];
@@ -151,6 +152,16 @@ class HomeProvider extends ChangeNotifier {
     return ids.toList();
   }
 
+  void _applyDefaultSections() {
+    _sections = defaultHomeSections
+        .map((e) => HomeSection.fromJson(e))
+        .where((section) => section.visible)
+        .toList();
+    _sectionsLoaded = true;
+    _hasError = false;
+    _errorMessage = '';
+  }
+
   /* =========================================================
       🔹 FETCH SECTIONS
   ========================================================== */
@@ -177,22 +188,28 @@ class HomeProvider extends ChangeNotifier {
             .where((section) => section.visible)
             .toList();
 
+        if (_sections.isEmpty) {
+          _applyDefaultSections();
+        }
+
         _sectionsLoaded = true;
 
         /// 🔥 Preload all products
         final ids = extractAllProductIds();
         await fetchProductsBulk(ids); // ✅ IMPORTANT: await
       } else {
-        _hasError = true;
-        _errorMessage = 'Server error (${response.statusCode}). Pull to retry.';
+        _applyDefaultSections();
       }
     } on TimeoutException {
-      _hasError = true;
-      _errorMessage = 'Connection timed out. Pull to retry.';
+      _applyDefaultSections();
     } catch (e) {
-      _hasError = true;
-      _errorMessage = 'Failed to load. Pull to retry.';
+      _applyDefaultSections();
       debugPrint("❌ Sections fetch error: $e");
+    }
+
+    final fallbackProductIds = extractAllProductIds();
+    if (fallbackProductIds.isNotEmpty) {
+      await fetchProductsBulk(fallbackProductIds);
     }
 
     _isLoading = false;

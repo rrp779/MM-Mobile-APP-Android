@@ -32,6 +32,8 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+**/build/
+**/.gradle/
 
 # Symbolication related
 app.*.symbols
@@ -43,3 +45,14 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/build/
+
+# Generated/native dependency folders
+**/Pods/
+
+# Local patched plugin example apps are not needed by this app
+/patched_packages/**/example/
+/patched_packages/**/local.properties
+
+# Temporary/generated launcher icon files
+/android/app/src/main/res/mipmap-*/ic_launcher1.png

@@ -192,7 +192,7 @@ class _SearchScreenState
                     crossAxisSpacing:
                     16,
                     childAspectRatio:
-                    0.55,
+                    0.50,
                   ),
                   itemBuilder:
                       (_, index) {

@@ -45,15 +45,22 @@ dev_dependencies:
   hive_generator: ^2.0.1
   build_runner: ^2.4.6
 
+dependency_overrides:
+  razorpay_flutter:
+    path: patched_packages/razorpay_flutter
+  share_plus:
+    path: patched_packages/share_plus
+
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/icon.jpg"
+  image_path: "assets/icon.png"
 
 flutter:
   uses-material-design: true
   assets:
     - .env
+    - assets/icon.png
     - assets/logo.png
     - assets/splash.png
     - assets/icons/

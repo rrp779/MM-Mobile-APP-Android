@@ -205,7 +205,7 @@ class _BuyAgainPageState extends State<BuyAgainPage> {
           crossAxisCount: 2,
           mainAxisSpacing: 8,
           crossAxisSpacing: 8,
-          childAspectRatio: 0.58,
+          childAspectRatio: 0.50,
         ),
 
         itemCount: _products.length,

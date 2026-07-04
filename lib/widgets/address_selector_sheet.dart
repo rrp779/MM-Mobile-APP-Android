@@ -297,8 +297,11 @@ mutation customerDefaultAddressUpdate($accessToken: String!, $addressId: ID!) {
                   return id.split('/').last;
                 }
                 final address = addresses[index]["node"];
+                final normalizedSelectedId = normalizeId(selectedId ?? "");
+                final normalizedAddressId = normalizeId(address["id"] ?? "");
                 final isSelected =
-                    normalizeId(selectedId ?? "") == normalizeId(address["id"]);
+                    normalizedSelectedId == normalizedAddressId ||
+                    (selectedId == null && addresses.length == 1);
 
                 return InkWell(
 

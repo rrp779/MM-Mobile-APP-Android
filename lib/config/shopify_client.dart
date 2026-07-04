@@ -3,7 +3,7 @@ import '../config/shopify_config.dart';
 
 GraphQLClient getShopifyClient() {
   final HttpLink httpLink = HttpLink(
-    'https://${ShopifyConfig.storeDomain}/api/2023-10/graphql.json',
+    'https://${ShopifyConfig.storeDomain}/api/2024-04/graphql.json',
     defaultHeaders: {
       'X-Shopify-Storefront-Access-Token':
       ShopifyConfig.storefrontAccessToken,

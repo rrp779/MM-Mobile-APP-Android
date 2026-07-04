@@ -255,37 +255,6 @@ class _HomeScreenState extends State<HomeScreen>
     final visibleSections = sections.where((s) => s.visible).toList();
 
     if (visibleSections.isEmpty) {
-      // FIXED: Contextual error message and retry button
-      final provider = context.read<HomeProvider>();
-      
-      if (provider.hasError) {
-        return [
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 200,
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error_outline, size: 48, color: Colors.grey),
-                    const SizedBox(height: 16),
-                    Text(provider.errorMessage),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFEA0180),
-                      ),
-                      onPressed: () => provider.fetchSections(forceRefresh: true),
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          )
-        ];
-      }
-
       return [
         const SliverToBoxAdapter(
           child: SizedBox(
@@ -818,7 +787,7 @@ class _HomeScreenState extends State<HomeScreen>
       children: [
         _sectionTitle(section.title),
         SizedBox(
-          height: 320,
+          height: 340,
           child: ListView.builder(
             primary: false,
             scrollDirection: Axis.horizontal,

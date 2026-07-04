@@ -149,7 +149,7 @@ class ProductHorizontalSlider extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             SizedBox(
-              height: 340,
+              height: 360,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 itemCount: products.length,

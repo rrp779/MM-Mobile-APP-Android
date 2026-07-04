@@ -1,0 +1,39 @@
+group 'com.razorpay.razorpay_flutter'
+version '1.1.4'
+
+buildscript {
+    repositories {
+        mavenCentral()
+        google()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.11.1'
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        mavenCentral()
+        google()
+    }
+}
+
+apply plugin: 'com.android.library'
+
+android {
+    compileSdkVersion 36
+   namespace 'com.razorpay.razorpay_flutter'
+    defaultConfig {
+        minSdkVersion 19
+        targetSdkVersion 36
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+    }
+    lintOptions {
+        disable 'InvalidPackage'
+    }
+    dependencies {
+        implementation fileTree(dir: 'libs', include: ['*.jar'])
+        api 'com.razorpay:checkout:1.6.+'
+    }
+}

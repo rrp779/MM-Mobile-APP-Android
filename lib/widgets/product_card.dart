@@ -108,17 +108,27 @@ class _ProductCardState extends State<ProductCard> {
 
     final isSingleVariant = product.variantCount == 1;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cardWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : 170.0;
+        final cardHeight = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : 330.0;
+        final imageHeight = (cardHeight * 0.46).clamp(120.0, cardWidth);
+
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
 
           /// IMAGE
-          GestureDetector(
+              GestureDetector(
             onTap: () {
               Navigator.push(
                 context,
@@ -135,7 +145,7 @@ class _ProductCardState extends State<ProductCard> {
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       return SizedBox(
-                        height: constraints.maxWidth,
+                        height: imageHeight,
                         child: Container(
                           decoration: BoxDecoration(
                             border: Border.all(
@@ -212,90 +222,98 @@ class _ProductCardState extends State<ProductCard> {
             ),
           ),
 
-          /// BRAND
-          if (product.brandTitle != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Text(
-                product.brandTitle!,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFFEA0180),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-
-          /// TITLE
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: SizedBox(
-              height: 36,
-              child: Text(
-                product.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12),
-              ),
-            ),
-          ),
-
-          /// VARIANTS
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: _buildVariantCounts(product),
-          ),
-
-          /// PRICE
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    if (hasDiscount) ...[
-                      Text(
-                        formatPrice(product.compareAt!),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          decoration: TextDecoration.lineThrough,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                    ],
-                    Text(
-                      formatPrice(product.price),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                if (hasDiscount)
-                  Text(
-                    "($discountPercent% OFF)",
+              /// BRAND
+              if (product.brandTitle != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    product.brandTitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 11,
-                      color: Colors.green,
+                      color: Color(0xFFEA0180),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-              ],
-            ),
-          ),
+                ),
 
-          const SizedBox(height: 6),
+          /// TITLE
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: SizedBox(
+                  height: 32,
+                  child: Text(
+                    product.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, height: 1.2),
+                  ),
+                ),
+              ),
+
+          /// VARIANTS
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: _buildVariantCounts(product),
+              ),
+
+          /// PRICE
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        children: [
+                          if (hasDiscount) ...[
+                            Text(
+                              formatPrice(product.compareAt!),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                decoration: TextDecoration.lineThrough,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          Text(
+                            formatPrice(product.price),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (hasDiscount)
+                      Text(
+                        "($discountPercent% OFF)",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.green,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 1),
 
           /// BUTTON WITH LOADER
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: SizedBox(
-              width: double.infinity,
-              height: 32,
-              child: ElevatedButton(
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 28,
+                  child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFEA0180),
                   shape: RoundedRectangleBorder(
@@ -364,13 +382,15 @@ class _ProductCardState extends State<ProductCard> {
                         : Colors.white,
                   ),
                 ),
+                  ),
+                ),
               ),
-            ),
-          ),
 
-          const SizedBox(height: 8),
-        ],
-      ),
+              const SizedBox(height: 4),
+            ],
+          ),
+        );
+      },
     );
   }
 }

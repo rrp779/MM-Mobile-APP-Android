@@ -1123,10 +1123,9 @@ packages:
   razorpay_flutter:
     dependency: "direct main"
     description:
-      name: razorpay_flutter
-      sha256: a90e05bb571fd1df5b7846d2173cb9cf1e07ec6d57df48068a05c152be177311
-      url: "https://pub.dev"
-    source: hosted
+      path: "patched_packages/razorpay_flutter"
+      relative: true
+    source: path
     version: "1.4.1"
   rxdart:
     dependency: transitive
@@ -1147,10 +1146,9 @@ packages:
   share_plus:
     dependency: "direct main"
     description:
-      name: share_plus
-      sha256: fce43200aa03ea87b91ce4c3ac79f0cecd52e2a7a56c7a4185023c271fbfa6da
-      url: "https://pub.dev"
-    source: hosted
+      path: "patched_packages/share_plus"
+      relative: true
+    source: path
     version: "10.1.4"
   share_plus_platform_interface:
     dependency: transitive

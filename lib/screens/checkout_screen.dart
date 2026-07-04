@@ -40,10 +40,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Map? selectedAddress;
 
   late Razorpay _razorpay;
-  String? _razorpayKeyId;
 
   String formatPrice(double amount) {
     return "₹ ${amount.toStringAsFixed(2)}";
+  }
+
+  String get razorpayLogoUrl {
+    final baseUrl = BackendConfig.baseUrl;
+    final backendOrigin = baseUrl.endsWith('/api')
+        ? baseUrl.substring(0, baseUrl.length - 4)
+        : baseUrl;
+    return "$backendOrigin/assets/razorpay-icon.png";
   }
 
   TextEditingController couponController = TextEditingController();
@@ -59,24 +66,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, handleExternalWallet);
 
     checkLogin();
-    fetchRazorpayConfig();
-  }
-
-  Future<void> fetchRazorpayConfig() async {
-    try {
-      final resp = await http.get(
-        Uri.parse("${BackendConfig.baseUrl}/payment/config"),
-      );
-      if (resp.statusCode != 200) return;
-      final data = jsonDecode(resp.body);
-      final keyId = (data["key_id"] ?? "").toString().trim();
-      if (!mounted) return;
-      setState(() {
-        _razorpayKeyId = keyId.isEmpty ? null : keyId;
-      });
-    } catch (_) {
-      // Ignore; we'll show a message when user taps Pay Now.
-    }
   }
 
   /// LOGIN CHECK
@@ -233,66 +222,75 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     final customer = context.read<CustomerModel>().customer;
 
-    if (_razorpayKeyId == null) {
-      await fetchRazorpayConfig();
-    }
-    if (_razorpayKeyId == null) {
+    try {
+      final response = await http.post(
+        Uri.parse("${BackendConfig.baseUrl}/payment/create-order"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "amount": amountInPaise,
+          "cart": widget.cartItems.map((item) => {
+            "variant_id": item["variant_id"],  // MUST exist
+            "quantity": item["qty"],           // FIX HERE
+            "price": item["price"],
+          }).toList(),
+          "total_mrp": widget.totalMrp,
+          "discount": widget.totalDiscount,
+          "coupon_discount": cartProvider.couponDiscount,
+          "shipping": shipping,
+          "email": customer?["email"] ?? "",
+          "phone": selectedAddress?["phone"] ?? "",
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Unable to start payment. Please try again.")),
+        );
+        return;
+      }
+
+      final data = jsonDecode(response.body);
+      if (data == null || data["id"] == null || data["amount"] == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Payment init failed. Please try again.")),
+        );
+        return;
+      }
+
+      final razorpayKeyId = (data["key_id"] ?? data["key"] ?? "").toString().trim();
+      if (razorpayKeyId.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Payment config missing. Please try again later.")),
+        );
+        return;
+      }
+
+      var options = {
+        'key': razorpayKeyId,
+        'amount': data['amount'],
+        'order_id': data['id'],
+        'name': 'Makeup Mystery India',
+        'description': 'Order Payment',
+        'image': razorpayLogoUrl,
+        'timeout': 300,
+        'prefill': {
+          'contact': selectedAddress?["phone"] ?? "",
+          'email': customer?["email"] ?? "",
+        },
+      };
+
+      _razorpay.open(options);
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Payment config missing. Please try again later.")),
+        const SnackBar(
+          content: Text("Backend not reachable. Please check backend URL or internet."),
+        ),
       );
-      return;
     }
-
-    final response = await http.post(
-      Uri.parse("${BackendConfig.baseUrl}/payment/create-order"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
-        "amount": amountInPaise,
-        "cart": widget.cartItems.map((item) => {
-          "variant_id": item["variant_id"],  // MUST exist
-          "quantity": item["qty"],           // FIX HERE
-        }).toList(),
-        "total_mrp": widget.totalMrp,
-        "discount": widget.totalDiscount,
-        "coupon_discount": cartProvider.couponDiscount,
-        "shipping": shipping,
-        "email": customer?["email"] ?? "",
-        "phone": selectedAddress?["phone"] ?? "",
-      }),
-    );
-
-    if (response.statusCode != 200) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Unable to start payment. Please try again.")),
-      );
-      return;
-    }
-
-    final data = jsonDecode(response.body);
-    if (data == null || data["id"] == null || data["amount"] == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Payment init failed. Please try again.")),
-      );
-      return;
-    }
-
-    var options = {
-      'key': _razorpayKeyId,
-      'amount': data['amount'],
-      'order_id': data['id'],
-      'name': 'Makeup Mystery India',
-      'description': 'Order Payment',
-      'timeout': 300,
-      'prefill': {
-        'contact': selectedAddress?["phone"] ?? "",
-        'email': customer?["email"] ?? "",
-      },
-    };
-
-    _razorpay.open(options);
   }
 
   void showSuccessDialog() {

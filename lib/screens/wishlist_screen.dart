@@ -45,7 +45,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
           crossAxisCount: 2,
           mainAxisSpacing: 16,
           crossAxisSpacing: 16,
-          childAspectRatio: 0.55,
+          childAspectRatio: 0.50,
         ),
         itemBuilder: (_, index) {
           return ProductCard(
