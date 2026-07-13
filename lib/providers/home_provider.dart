@@ -28,6 +28,11 @@ class HomeProvider extends ChangeNotifier {
   /// 🔥 TRACK LOADING PRODUCTS
   final Set<String> _loadingProducts = {};
 
+  bool isProductLoading(String? productId) {
+    if (productId == null || productId.isEmpty) return false;
+    return _loadingProducts.contains(productId);
+  }
+
   /* =========================================================
       🔹 FETCH SINGLE PRODUCT
   ========================================================== */
@@ -56,9 +61,9 @@ class HomeProvider extends ChangeNotifier {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        if (data == null || data.isEmpty) return null;
+        if (data == null || data is! Map || data.isEmpty) return null;
 
-        final product = Product.fromJson(data);
+        final product = Product.fromJson(Map<String, dynamic>.from(data));
 
         /// ✅ FIX: replace map (NOT mutate)
         _productsMap = {
@@ -99,14 +104,23 @@ class HomeProvider extends ChangeNotifier {
         final encodedId = Uri.encodeComponent(id);
         final url = "${BackendConfig.baseUrl}/products/$encodedId";
 
-        final response = await http.get(Uri.parse(url));
+        try {
+          final response = await http
+              .get(Uri.parse(url))
+              .timeout(const Duration(seconds: 15));
 
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
+          if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
 
-          if (data != null && data.isNotEmpty) {
-            return MapEntry(id, Product.fromJson(data));
+            if (data != null && data is Map && data.isNotEmpty) {
+              return MapEntry(
+                id,
+                Product.fromJson(Map<String, dynamic>.from(data)),
+              );
+            }
           }
+        } catch (e) {
+          debugPrint("❌ Product fetch failed for $id: $e");
         }
         return null;
       });

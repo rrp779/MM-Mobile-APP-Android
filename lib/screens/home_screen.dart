@@ -781,7 +781,8 @@ class _HomeScreenState extends State<HomeScreen>
   }
   /* ================= PRODUCTS ================= */
   Widget _buildProductSlider(HomeSection section) {
-    final productsMap = context.select<HomeProvider, Map>((p) => p.productsMap);
+    final provider = context.watch<HomeProvider>();
+    final productsMap = provider.productsMap;
     final items = section.items.where((i) => i.visible).toList();
     return Column(
       children: [
@@ -794,11 +795,21 @@ class _HomeScreenState extends State<HomeScreen>
             cacheExtent: 600,
             itemCount: items.length,
             itemBuilder: (_, i) {
-              final id = items[i].productId;
-              final product = productsMap[id];
+              final item = items[i];
+              final id = item.productId;
+              final product = id != null ? productsMap[id] : null;
 
-              if (product == null) {
+              if (product != null) {
                 return SizedBox(
+                  width: 170,
+                  child: RepaintBoundary(
+                    child: ProductCard(product: product),
+                  ),
+                );
+              }
+
+              if (provider.isProductLoading(id)) {
+                return const SizedBox(
                   width: 170,
                   child: Center(child: CircularProgressIndicator()),
                 );
@@ -806,14 +817,56 @@ class _HomeScreenState extends State<HomeScreen>
 
               return SizedBox(
                 width: 170,
-                child: RepaintBoundary(
-                  child: ProductCard(product: product),
-                ),
+                child: _buildProductFallbackCard(item),
               );
             },
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildProductFallbackCard(SectionItem item) {
+    final imageUrl = item.thumbnail ??
+        item.image ??
+        item.productImage ??
+        item.collectionImage ??
+        "";
+
+    return GestureDetector(
+      onTap: () {
+        if (item.productId != null && item.productId!.isNotEmpty) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ProductDetailScreen(
+                productId: item.productId!,
+              ),
+            ),
+          );
+        }
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: _cachedImage(
+              imageUrl,
+              height: 200,
+              width: 170,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            item.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
     );
   }
 
