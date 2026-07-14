@@ -46,6 +46,7 @@ class _FilterScreenState extends State<FilterScreen> {
     {"label": "Rs. 0 - Rs. 499", "min": 0.0, "max": 499.0},
     {"label": "Rs. 500 - Rs. 999", "min": 500.0, "max": 999.0},
     {"label": "Rs. 1000 - Rs. 1999", "min": 1000.0, "max": 1999.0},
+    {"label": "Rs. 2000 and above", "min": 2000.0, "max": double.infinity},
   ];
 
   /// 🔍 SEARCH

@@ -2,7 +2,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class BackendConfig {
   static const String fallbackBaseUrl =
-      "https://mm-backend-production-f67e.up.railway.app/api";
+      "https://mm-backend-production-d3a3.up.railway.app/api";
 
   static String get baseUrl {
     var value = (dotenv.env['BACKEND_BASE_URL'] ?? fallbackBaseUrl).trim();

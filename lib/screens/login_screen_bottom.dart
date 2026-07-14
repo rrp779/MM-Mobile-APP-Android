@@ -49,12 +49,12 @@ class _CustomerLoginRegisterBottomState
     super.dispose();
   }
 
-  void showMessage(String message, {bool isError = true}) {
+  void showMessage(String message, {bool isError = true, bool autoClose = true}) {
     showDialog(
       context: context,
-      barrierDismissible: isError, // ❗ only dismiss manually on error
+      barrierDismissible: isError || !autoClose, // ❗ only dismiss manually on error or when not auto-closing
       builder: (_) {
-        if (!isError) {
+        if (!isError && autoClose) {
           Future.delayed(const Duration(seconds: 1), () {
             if (Navigator.canPop(context)) Navigator.pop(context); // close dialog
             Navigator.pop(context, true); // close bottom sheet
@@ -77,10 +77,15 @@ class _CustomerLoginRegisterBottomState
             ],
           ),
           content: Text(message),
-          actions: isError
+          actions: (isError || !autoClose)
               ? [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                Navigator.pop(context);
+                if (!isError && !autoClose) {
+                  Navigator.pop(context, true); // close bottom sheet
+                }
+              },
               child: const Text("OK"),
             )
           ]
@@ -221,7 +226,16 @@ class _CustomerLoginRegisterBottomState
     final errors = result.data!['customerCreate']['customerUserErrors'];
 
     if (errors.isNotEmpty) {
-      showMessage(errors[0]['message']);
+      final msg = errors[0]['message'].toString();
+      final isVerification = msg.toLowerCase().contains("sent an email") ||
+          msg.toLowerCase().contains("verify your email") ||
+          msg.toLowerCase().contains("verification");
+
+      if (isVerification) {
+        showMessage(msg, isError: false, autoClose: false);
+      } else {
+        showMessage(msg);
+      }
       return;
     }
 

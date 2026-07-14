@@ -696,7 +696,7 @@ class _ProductDetailScreenState
                               ),
                             ),
                             TextSpan(
-                              text: "Makeup Mystery India",
+                              text: "Makeup Mystery",
                               style: TextStyle(
 
                               ),

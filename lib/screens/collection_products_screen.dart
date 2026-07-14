@@ -101,16 +101,13 @@ class _CollectionProductsScreenState extends State<CollectionProductsScreen> {
                 ? collectionByIdQuery
                 : collectionByHandleQuery,
           ),
-          variables: widget.collectionId.startsWith("gid://")
-              ? {
-            "id": widget.collectionId,
-            "first": 100,
-            "after": null,
-          }
-              : {
-            "handle": _normalizeHandle(
-              widget.collectionHandle ?? widget.collectionId,
-            ),
+          variables: {
+            if (widget.collectionId.startsWith("gid://"))
+              "id": widget.collectionId
+            else
+              "handle": _normalizeHandle(
+                widget.collectionHandle ?? widget.collectionId,
+              ),
             "first": 100,
             "after": null,
             "sortKey": _sortKey,
@@ -172,41 +169,11 @@ class _CollectionProductsScreenState extends State<CollectionProductsScreen> {
 
           /// 🔥 EXTRACT BRAND + COUNT
           final Map<String, int> brandCountMap = {};
-
           for (var e in edges) {
-            final productNode = e['node'];
-
-            final collections = productNode['collections']?['edges'] ?? [];
-
-            for (var c in collections) {
-              final node = c['node'];
-              final title = node?['title'] ?? '';
-
-              /// 🔥 METAOBJECT FIELDS
-              final fields = node?['metafield']?['reference']?['fields'];
-
-              String? type;
-
-              if (fields != null) {
-                for (var field in fields) {
-                  if (field['key'] == 'collection_type') {
-                    type = field['value'];
-                    break;
-                  }
-                }
-              }
-
-              /// 🔥 ONLY BRAND
-              if (title.isNotEmpty &&
-                  (type ?? '').toLowerCase().trim() == 'brand') {
-
-                /// 🔥 COUNT LOGIC
-                if (brandCountMap.containsKey(title)) {
-                  brandCountMap[title] = brandCountMap[title]! + 1;
-                } else {
-                  brandCountMap[title] = 1;
-                }
-              }
+            final p = Product.fromJson(e['node']);
+            final brand = p.brandTitle;
+            if (brand != null && brand.isNotEmpty) {
+              brandCountMap[brand] = (brandCountMap[brand] ?? 0) + 1;
             }
           }
 
@@ -230,6 +197,7 @@ class _CollectionProductsScreenState extends State<CollectionProductsScreen> {
             {"label": "Rs. 0 - Rs. 499", "min": 0.0, "max": 499.0},
             {"label": "Rs. 500 - Rs. 999", "min": 500.0, "max": 999.0},
             {"label": "Rs. 1000 - Rs. 1999", "min": 1000.0, "max": 1999.0},
+            {"label": "Rs. 2000 and above", "min": 2000.0, "max": double.infinity},
           ];
 
 
@@ -708,13 +676,20 @@ const String collectionByIdQuery = r'''
 query GetCollectionProducts(
   $id: ID!,
   $first: Int!,
-  $after: String
+  $after: String,
+  $sortKey: ProductCollectionSortKeys,
+  $reverse: Boolean
 ) {
   node(id: $id) {
     ... on Collection {
       id
       title
-      products(first: $first, after: $after) {
+      products(
+        first: $first
+        after: $after
+        sortKey: $sortKey
+        reverse: $reverse
+      ) {
         pageInfo {
           hasNextPage
           endCursor

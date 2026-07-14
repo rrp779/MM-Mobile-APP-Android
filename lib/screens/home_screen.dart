@@ -793,31 +793,30 @@ class _HomeScreenState extends State<HomeScreen>
             primary: false,
             scrollDirection: Axis.horizontal,
             cacheExtent: 600,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             itemCount: items.length,
             itemBuilder: (_, i) {
               final item = items[i];
               final id = item.productId;
               final product = id != null ? productsMap[id] : null;
 
+              Widget cardChild;
               if (product != null) {
-                return SizedBox(
-                  width: 170,
-                  child: RepaintBoundary(
-                    child: ProductCard(product: product),
-                  ),
+                cardChild = RepaintBoundary(
+                  child: ProductCard(product: product),
                 );
+              } else if (provider.isProductLoading(id)) {
+                cardChild = const Center(child: CircularProgressIndicator());
+              } else {
+                cardChild = _buildProductFallbackCard(item);
               }
 
-              if (provider.isProductLoading(id)) {
-                return const SizedBox(
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: SizedBox(
                   width: 170,
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
-
-              return SizedBox(
-                width: 170,
-                child: _buildProductFallbackCard(item),
+                  child: cardChild,
+                ),
               );
             },
           ),

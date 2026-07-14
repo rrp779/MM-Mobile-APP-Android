@@ -212,6 +212,11 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
         body: jsonEncode({"phone": phone}),
       );
 
+      if (response.statusCode == 404) {
+        showMessage("Endpoint not found (404). Please ensure the backend is deployed with WhatsApp OTP routes.");
+        return;
+      }
+
       final data = jsonDecode(response.body);
       if (response.statusCode >= 400 || data["success"] != true) {
         showMessage(data["message"] ?? "Unable to send OTP");
@@ -235,6 +240,8 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
             : "OTP sent on WhatsApp. Dev OTP: $devOtp",
         isError: false,
       );
+    } on FormatException {
+      showMessage("Received invalid response format from server. Please verify the backend is running correctly.");
     } catch (_) {
       showMessage(
         "We could not send the WhatsApp OTP right now. Please check your internet connection and try again.",
@@ -266,6 +273,11 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
           "verifyOnly": forRegister,
         }),
       );
+
+      if (response.statusCode == 404) {
+        showMessage("Endpoint not found (404). Please ensure the backend is deployed with WhatsApp OTP routes.");
+        return;
+      }
 
       final data = jsonDecode(response.body);
       if (response.statusCode >= 400 || data["success"] != true) {
@@ -306,14 +318,12 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
   /// REGISTER
   Future<void> register() async {
     if (!_registerKey.currentState!.validate()) return;
-    if (!registerPhoneVerified) {
-      showMessage("Please verify your WhatsApp number first");
-      return;
-    }
 
     setState(() => loading = true);
 
     final client = GraphQLProvider.of(context).value;
+
+    final phoneValue = registerVerifiedPhone ?? registerPhoneController.text.trim();
 
     final result = await client.mutate(
       MutationOptions(
@@ -331,7 +341,7 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
             "lastName": lastNameController.text,
             "email": emailController.text,
             "password": passwordController.text,
-            "phone": registerVerifiedPhone ?? registerPhoneController.text.trim(),
+            "phone": phoneValue.isEmpty ? null : phoneValue,
           }
         },
       ),
@@ -347,7 +357,22 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
     final errors = result.data!['customerCreate']['customerUserErrors'];
 
     if (errors.isNotEmpty) {
-      showMessage(errors[0]['message']);
+      final msg = errors[0]['message'].toString();
+      final isVerification = msg.toLowerCase().contains("sent an email") ||
+          msg.toLowerCase().contains("verify your email") ||
+          msg.toLowerCase().contains("verification");
+
+      if (isVerification) {
+        showMessage(
+          msg,
+          isError: false,
+          onOk: () {
+            _tabController.animateTo(0);
+          },
+        );
+      } else {
+        showMessage(msg);
+      }
       return;
     }
 
@@ -541,9 +566,7 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
               });
             }
           },
-          validator: forRegister
-              ? (v) => v!.trim().isEmpty ? "Enter WhatsApp number" : null
-              : null,
+          validator: null,
         ),
         if (otpWasSent && !verified) ...[
           const SizedBox(height: 12),
