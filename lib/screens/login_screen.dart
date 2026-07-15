@@ -37,7 +37,7 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
   bool obscure = true;
   bool loading = false;
   bool remember = false;
-  bool loginWithWhatsApp = true;
+  bool loginWithWhatsApp = false;
   bool otpSent = false;
   bool registerOtpSent = false;
   bool registerPhoneVerified = false;
@@ -762,8 +762,8 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
                       key: _loginKey,
                       child: ListView(
                         children: [
-                          authMethodSwitch(),
-                          const SizedBox(height: 22),
+                          // authMethodSwitch(),
+                          // const SizedBox(height: 22),
 
                           if (loginWithWhatsApp) ...[
                             Container(
@@ -928,15 +928,14 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
                           ),
 
                           const SizedBox(height: 12),
-                          phoneVerificationFields(
-                            phone: registerPhoneController,
-                            otp: registerOtpController,
-                            otpWasSent: registerOtpSent,
-                            verified: registerPhoneVerified,
-                            forRegister: true,
-                          ),
-
-                          const SizedBox(height: 12),
+                          // phoneVerificationFields(
+                          //   phone: registerPhoneController,
+                          //   otp: registerOtpController,
+                          //   otpWasSent: registerOtpSent,
+                          //   verified: registerPhoneVerified,
+                          //   forRegister: true,
+                          // ),
+                          // const SizedBox(height: 12),
                           label("Email"),
                           const SizedBox(height: 6),
                           TextFormField(
