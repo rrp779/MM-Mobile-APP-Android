@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
+import 'package:provider/provider.dart';
+import '../providers/cart_provider.dart';
 
 class CustomerModel with ChangeNotifier {
 	Map? _customer;
@@ -28,6 +30,12 @@ class CustomerModel with ChangeNotifier {
 		loyaltyPoints = 0;
 		vipTier = "";
 		redeemedRewards = 0;
+
+		try {
+			context.read<CartProvider>().resetCartState();
+		} catch (e) {
+			debugPrint("Error resetting cart on logout: $e");
+		}
 
 		notifyListeners();
 

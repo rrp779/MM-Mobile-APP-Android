@@ -46,11 +46,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   String get razorpayLogoUrl {
-    final baseUrl = BackendConfig.baseUrl;
-    final backendOrigin = baseUrl.endsWith('/api')
-        ? baseUrl.substring(0, baseUrl.length - 4)
-        : baseUrl;
-    return "$backendOrigin/assets/razorpay-icon.png";
+    return "https://www.makeupmystery.in/cdn/shop/files/update-faviconlogo.png";
   }
 
   TextEditingController couponController = TextEditingController();
@@ -382,6 +378,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   /// PAYMENT SUCCESS
   void handlePaymentSuccess(PaymentSuccessResponse response) async {
+    final cartProvider = context.read<CartProvider>();
     try {
 
     if (selectedAddress == null) {
@@ -391,7 +388,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       return;
     }
 
-    final cartProvider = context.read<CartProvider>();
     double subtotalAfterDiscount = widget.totalAmount - cartProvider.couponDiscount;
     double shipping = subtotalAfterDiscount < 1500 ? 80 : 0;
     double finalAmount = subtotalAfterDiscount + shipping;
@@ -410,6 +406,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     /// ✅ FIX: Get email from customer model (NOT address)
     final customer = context.read<CustomerModel>().customer;
     String email = customer?["email"] ?? "";
+
+    // Show blocking loader
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const PopScope(
+        canPop: false,
+        child: Center(
+          child: CircularProgressIndicator(
+            color: Color(0xFFEA0180),
+          ),
+        ),
+      ),
+    );
 
     final verify = await http.post(
       Uri.parse("${BackendConfig.baseUrl}/payment/verify"),
@@ -440,10 +450,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       }),
     );
 
+    if (context.mounted) {
+      Navigator.pop(context); // Dismiss blocking loader
+    }
+
     final data = jsonDecode(verify.body);
 
     if (data["success"]) {
-
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove("cart"); // 🔥 important
       cartProvider.resetCartState();
@@ -470,6 +483,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     }
     } catch (_) {
+      if (context.mounted) {
+        Navigator.pop(context); // Dismiss blocking loader if open
+      }
+      cartProvider.resetCartState(); // Clear cart anyway since they paid
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
