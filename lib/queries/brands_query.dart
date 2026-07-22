@@ -1,6 +1,10 @@
 const String collectionsQuery = r'''
-query GetCollections {
-  collections(first: 250) {
+query GetCollections($cursor: String) {
+  collections(first: 250, after: $cursor) {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
     edges {
       node {
         id
