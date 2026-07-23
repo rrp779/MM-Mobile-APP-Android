@@ -268,7 +268,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         'key': razorpayKeyId,
         'amount': data['amount'],
         'order_id': data['id'],
-        'name': 'Makeup Mystery India',
+        'name': 'Makeup Mystery',
         'description': 'Order Payment',
         'image': razorpayLogoUrl,
         'timeout': 300,
