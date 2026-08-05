@@ -198,6 +198,34 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
+  double calculateShipping() {
+    double shipping = 0;
+    bool hasRegularProduct = false;
+
+    for (var item in widget.cartItems) {
+      final handle = (item["handle"] ?? "").toString().trim().toLowerCase();
+      final qty = (item["qty"] ?? 1) as int;
+
+      if (handle == "portable-makeup-artist-chair-with-headrest") {
+        shipping += 300 * qty;
+      } else if (handle == "premium-edition-vanity-bag-with-6-pouches" ||
+          handle == "makeup-mystery-vanity-bag-with-6-pouches" ||
+          handle == "beyond-vanity-bag" ||
+          handle == "makeup-mystery-hair-makeup-vanity-bag-with-4-pouches" ||
+          handle == "beyond-box-makeup-vanity") {
+        shipping += 480 * qty;
+      } else {
+        hasRegularProduct = true;
+      }
+    }
+
+    if (hasRegularProduct) {
+      shipping += 80;
+    }
+
+    return shipping;
+  }
+
   /// OPEN RAZORPAY
   Future<void> openCheckout() async {
 
@@ -211,7 +239,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     /// ✅ USE SAME CALCULATION
     final cartProvider = context.read<CartProvider>();
     double subtotalAfterDiscount = widget.totalAmount - cartProvider.couponDiscount;
-    double shipping = subtotalAfterDiscount < 1500 ? 80 : 0;
+    double shipping = calculateShipping();
     double finalAmount = subtotalAfterDiscount + shipping;
 
     int amountInPaise = (finalAmount * 100).toInt();
@@ -228,6 +256,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             "variant_id": item["variant_id"],  // MUST exist
             "quantity": item["qty"],           // FIX HERE
             "price": item["price"],
+            "handle": item["handle"],
           }).toList(),
           "total_mrp": widget.totalMrp,
           "discount": widget.totalDiscount,
@@ -389,7 +418,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
 
     double subtotalAfterDiscount = widget.totalAmount - cartProvider.couponDiscount;
-    double shipping = subtotalAfterDiscount < 1500 ? 80 : 0;
+    double shipping = calculateShipping();
     double finalAmount = subtotalAfterDiscount + shipping;
     final appliedCoupon = (cartProvider.appliedCoupon ?? couponController.text)
         .toString()
@@ -526,7 +555,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final userName = customer?['firstName'] ?? "Customer";
     /// ✅ GLOBAL CALCULATION (IMPORTANT)
     double subtotalAfterDiscount = widget.totalAmount - cartProvider.couponDiscount;
-    double shipping = subtotalAfterDiscount < 1500 ? 80 : 0;
+    double shipping = calculateShipping();
     double finalAmount = subtotalAfterDiscount + shipping;
 
 

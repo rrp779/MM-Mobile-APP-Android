@@ -123,7 +123,7 @@ class CartProvider with ChangeNotifier {
                     id
                     title
                     image { url }
-                    product { title }
+                    product { title handle }
                     price { amount }
                     compareAtPrice { amount }
                   }
@@ -190,7 +190,7 @@ class CartProvider with ChangeNotifier {
                   id
                   title
                   image { url }
-                  product { title }
+                  product { title handle }
                   price { amount }
                   compareAtPrice { amount }
                 }
@@ -255,7 +255,7 @@ class CartProvider with ChangeNotifier {
                   id
                   title
                   image { url }
-                  product { title }
+                  product { title handle }
                   price { amount }
                   compareAtPrice { amount }
                 }

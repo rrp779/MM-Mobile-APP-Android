@@ -449,6 +449,7 @@ class CartPage extends StatelessWidget {
                     "image": merchandise['image']?['url'] ?? "",
                     "variant_id": merchandise['id'],        // ✅ correct key
                     "productId": product['id'],
+                    "handle": product['handle'] ?? "",
                   };
 
                 }).toList();

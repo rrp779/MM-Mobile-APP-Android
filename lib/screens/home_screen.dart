@@ -766,6 +766,9 @@ class _HomeScreenState extends State<HomeScreen>
   /* ================= BANNER ================= */
 
   Widget _buildBanner(HomeSection section) {
+    if (section.items.isEmpty) {
+      return const SizedBox.shrink();
+    }
     final item = section.items.first;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), // ✅ padding
