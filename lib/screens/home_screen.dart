@@ -522,7 +522,7 @@ class _HomeScreenState extends State<HomeScreen>
                     borderRadius: BorderRadius.circular(10),
                     child:_cachedImage(
                       imageUrl,
-                      fit: BoxFit.cover,
+                      fit: BoxFit.fill,
                     ),
                   ),
                 ),
@@ -754,6 +754,7 @@ class _HomeScreenState extends State<HomeScreen>
                   imageUrl,
                   width: double.infinity,
                   height: 280,
+                  fit: BoxFit.fill,
                 ),
               ),
             ),
@@ -778,6 +779,7 @@ class _HomeScreenState extends State<HomeScreen>
           item.image ?? "",
           height: 220,
           width: double.infinity,
+          fit: BoxFit.fill,
         ),
       ),
     );
