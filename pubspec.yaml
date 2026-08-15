@@ -1,6 +1,6 @@
 name: Makeupmysteryindia
 description: MakeupMysteryIndia Shopify Flutter App
-version: 1.0.9+9
+version: 1.0.14+21
 environment:
   sdk: '>=3.0.0 <4.0.0'
 

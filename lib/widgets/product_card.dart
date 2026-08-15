@@ -122,6 +122,17 @@ class _ProductCardState extends State<ProductCard> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: const Color(0xFFEFEFEF),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -223,7 +234,7 @@ class _ProductCardState extends State<ProductCard> {
           ),
 
               /// BRAND
-              if (product.brandTitle != null)
+              if (product.brandTitle != null) ...[
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: Text(
@@ -237,6 +248,8 @@ class _ProductCardState extends State<ProductCard> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 2),
+              ],
 
           /// TITLE
               Padding(
@@ -251,12 +264,14 @@ class _ProductCardState extends State<ProductCard> {
                   ),
                 ),
               ),
+              const SizedBox(height: 2),
 
           /// VARIANTS
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: _buildVariantCounts(product),
               ),
+              const SizedBox(height: 4),
 
           /// PRICE
               Padding(
@@ -305,7 +320,7 @@ class _ProductCardState extends State<ProductCard> {
                 ),
               ),
 
-              const SizedBox(height: 1),
+              const SizedBox(height: 6),
 
           /// BUTTON WITH LOADER
               Padding(

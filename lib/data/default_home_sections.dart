@@ -21,33 +21,33 @@ final List<Map<String, dynamic>> defaultHomeSections = [
     },
     "items": [
       {
-        "title": "Face",
+        "title": "Makeup",
         "collectionId": "gid://shopify/Collection/483651911984",
         "image":
-            "https://ik.imagekit.io/mmmobileapp/uploads/1776167085956_1__3__qwiM9Ht3U.png",
+            "https://ik.imagekit.io/mmmobileapp/uploads/1786706112034_Makeup_sUAurD6kv.png",
         "visible": true,
         "thumbnail":
             "https://cdn.shopify.com/s/files/1/0906/9228/8816/collections/concealer-cat-small_20062e6d-db80-43bd-9a93-b1635dabf47c.jpg?v=1771474129",
       },
       {
-        "title": "Body Care",
+        "title": "Skin care",
         "collectionId": "gid://shopify/Collection/488819261744",
         "image":
-            "https://ik.imagekit.io/mmmobileapp/uploads/1776167096175_2__3__PS8K2HXsg.png",
+            "https://ik.imagekit.io/mmmobileapp/uploads/1786706113614_Skin__-kht8jS8.png",
         "visible": true,
       },
       {
-        "title": "Hair Care",
+        "title": "Hair",
         "collectionId": "gid://shopify/Collection/488867332400",
         "image":
-            "https://ik.imagekit.io/mmmobileapp/uploads/1776167101556_3__3__pnIXWAbJo.png",
+            "https://ik.imagekit.io/mmmobileapp/uploads/1786706115031_Hair_pLpU_X5Qv.png",
         "visible": true,
       },
       {
-        "title": "Tools & Brush",
+        "title": "Appliances",
         "collectionId": "gid://shopify/Collection/488825323824",
         "image":
-            "https://ik.imagekit.io/mmmobileapp/uploads/1776167107099_4__2__n19cjqdkZ.png",
+            "https://ik.imagekit.io/mmmobileapp/uploads/1786706116415_Appliances_qiXoHM3fMx.png",
         "visible": true,
       },
     ],
@@ -77,14 +77,21 @@ final List<Map<String, dynamic>> defaultHomeSections = [
         "title": "Trending Product",
         "collectionId": "gid://shopify/Collection/484692656432",
         "image":
-            "https://ik.imagekit.io/mmmobileapp/uploads/1780896695999_Application-mystysale_L-P2pE5yD.png",
+            "https://ik.imagekit.io/mmmobileapp/uploads/1786705876299_App_banner_V4_zU4v7XgU8.png",
         "visible": true,
       },
       {
         "title": "Best Selling Products",
         "collectionId": "gid://shopify/Collection/484692623664",
         "image":
-            "https://ik.imagekit.io/mmmobileapp/uploads/1780896748060_Application-new_launch_xpfJvf09w.png",
+            "https://ik.imagekit.io/mmmobileapp/uploads/1786705878515_best_seller_3_5a3IXMslZ.png",
+        "visible": true,
+      },
+      {
+        "title": "Festival Banner",
+        "collectionId": "gid://shopify/Collection/484692656432",
+        "image":
+            "https://ik.imagekit.io/mmmobileapp/uploads/1786705880420_Festival__Banner_900_by_600_YqabvJe7K.png",
         "visible": true,
       },
     ],
@@ -145,7 +152,7 @@ final List<Map<String, dynamic>> defaultHomeSections = [
     "title": "Most Purchased",
     "type": "two_column_grid",
     "order": 4,
-    "visible": true,
+    "visible": false,
     "settings": {
       "layout": "column",
       "columns": 4,
@@ -219,21 +226,21 @@ final List<Map<String, dynamic>> defaultHomeSections = [
         "title": "Under 499",
         "collectionId": "gid://shopify/Collection/489905029424",
         "image":
-            "https://ik.imagekit.io/mmmobileapp/uploads/1776167758952_1__1__9-hM0h2i9.png",
+            "https://ik.imagekit.io/mmmobileapp/uploads/1786706447193_under_499_bP92drQql.png",
         "visible": true,
       },
       {
         "title": "Under 999",
         "collectionId": "gid://shopify/Collection/489913254192",
         "image":
-            "https://ik.imagekit.io/mmmobileapp/uploads/1776167231847_2__1__ub44qMPxfi.png",
+            "https://ik.imagekit.io/mmmobileapp/uploads/1786706449783_under_999_qk_Iecr7F.png",
         "visible": true,
       },
       {
         "title": "Under 1499",
         "collectionId": "gid://shopify/Collection/489913450800",
         "image":
-            "https://ik.imagekit.io/mmmobileapp/uploads/1778235311245_Under_1499_yHwne_KWl.png",
+            "https://ik.imagekit.io/mmmobileapp/uploads/1786706451778_under_1499_tcy5KK0NYo.png",
         "visible": true,
       },
     ],
@@ -307,28 +314,28 @@ final List<Map<String, dynamic>> defaultHomeSections = [
         "title": "Ferrarucci",
         "collectionId": "gid://shopify/Collection/486844465456",
         "image":
-            "https://ik.imagekit.io/mmmobileapp/uploads/1778837306132_Ferrarusci_QyOtT7j2y.png",
+            "https://ik.imagekit.io/mmmobileapp/uploads/1786706713655_1_mMYF4qEt7.png",
         "visible": true,
       },
       {
         "title": "Elizabeth Eden",
         "collectionId": "gid://shopify/Collection/487794508080",
         "image":
-            "https://ik.imagekit.io/mmmobileapp/uploads/1778837309317_Elizabetheden_wOXDAtQEK.png",
+            "https://ik.imagekit.io/mmmobileapp/uploads/1786706715575_2_cCFqDuJ0hh.png",
         "visible": true,
       },
       {
         "title": "MAC",
         "collectionId": "gid://shopify/Collection/485087936816",
         "image":
-            "https://ik.imagekit.io/mmmobileapp/uploads/1778837314072_mac_spit4GosU.png",
+            "https://ik.imagekit.io/mmmobileapp/uploads/1786706717634_3_qufPOOqGD.png",
         "visible": true,
       },
       {
         "title": "Plouise",
         "collectionId": "gid://shopify/Collection/486844989744",
         "image":
-            "https://ik.imagekit.io/mmmobileapp/uploads/1778837319156_Plouise_hhgWJT3b3.png",
+            "https://ik.imagekit.io/mmmobileapp/uploads/1786706720135_4_0bWHcukN4.png",
         "visible": true,
       },
     ],

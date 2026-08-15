@@ -152,13 +152,14 @@ class ProductHorizontalSlider extends StatelessWidget {
               height: 360,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
                 itemCount: products.length,
                 itemBuilder: (context, index) {
                   return SizedBox(
                     width: 190,
                     child: Padding(
                       padding:
-                      const EdgeInsets.symmetric(horizontal: 0),
+                      const EdgeInsets.symmetric(horizontal: 6),
                       child: ProductCard(
                         product: products[index],
                       ),
