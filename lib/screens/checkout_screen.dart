@@ -308,11 +308,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       };
 
       _razorpay.open(options);
-    } catch (_) {
+    } catch (e) {
+      debugPrint("Checkout openCheckout error: $e");
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Backend not reachable. Please check backend URL or internet."),
+        SnackBar(
+          content: Text("Error starting payment: $e"),
         ),
       );
     }
