@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
+import '../services/notification_service.dart';
 
 class CustomerModel with ChangeNotifier {
 	Map? _customer;
@@ -24,6 +25,8 @@ class CustomerModel with ChangeNotifier {
 		final prefs = await SharedPreferences.getInstance();
 
 		await prefs.remove('customer');
+
+		NotificationService().unregisterOnLogout();
 
 		_customer = null;
 
@@ -136,6 +139,7 @@ class CustomerModel with ChangeNotifier {
               firstName
               lastName
               email
+              phone
 
               # ⭐ LOYALTY FIELDS
               points: metafield(namespace: "app--168671248385", key: "points") {
@@ -206,6 +210,14 @@ class CustomerModel with ChangeNotifier {
 
 		final data = result.data!['customer'];
 		_customer = data;
+
+		if (data != null) {
+			NotificationService().syncTokenWithBackend(
+				customerId: data['id']?.toString(),
+				email: data['email']?.toString(),
+				phone: data['phone']?.toString(),
+			);
+		}
 		/// ✅ PARSE LOYALTY DATA
 		loyaltyPoints =
 				int.tryParse(data['points']?['value'] ?? "0") ?? 0;

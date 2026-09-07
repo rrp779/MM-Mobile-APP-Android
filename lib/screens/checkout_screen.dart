@@ -12,6 +12,7 @@ import '../widgets/coupon_bottom_sheet.dart';
 import '../screens/login_screen.dart';
 import '../config/backend_config.dart';
 import '../providers/cart_provider.dart';
+import '../services/notification_service.dart';
 
 class CheckoutScreen extends StatefulWidget {
 
@@ -40,6 +41,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Map? selectedAddress;
 
   late Razorpay _razorpay;
+  String? _currentRazorpayOrderId;
 
   String formatPrice(double amount) {
     return "₹ ${amount.toStringAsFixed(2)}";
@@ -307,6 +309,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         },
       };
 
+      _currentRazorpayOrderId = data['id']?.toString();
       _razorpay.open(options);
     } catch (e) {
       debugPrint("Checkout openCheckout error: $e");
@@ -491,6 +494,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       await prefs.remove("cart"); // 🔥 important
       cartProvider.resetCartState();
       couponController.clear();
+
+      NotificationService().syncTokenWithBackend(
+        phone: selectedAddress?["phone"]?.toString(),
+        email: email,
+        customerId: data["order"]?["customer"]?["id"]?.toString(),
+      );
+
       showSuccessDialog();
     } else {
 
@@ -532,10 +542,25 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (!mounted) return;
     final msg = (response.message?.isNotEmpty ?? false)
         ? response.message!
-        : "Payment failed or timed out. If amount was deducted, it will be refunded in 5-7 working days.";
+        : "Payment was not completed. Your items are safe in your cart.";
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg)),
     );
+
+    if (_currentRazorpayOrderId != null && _currentRazorpayOrderId!.isNotEmpty) {
+      final customer = context.read<CustomerModel>().customer;
+      http.post(
+        Uri.parse("${BackendConfig.baseUrl}/payment/failed"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "razorpay_order_id": _currentRazorpayOrderId,
+          "error_code": response.code,
+          "error_description": response.message ?? "Payment cancelled by user",
+          "email": customer?["email"] ?? "",
+          "phone": selectedAddress?["phone"]?.toString() ?? "",
+        }),
+      ).catchError((_) => http.Response('', 500));
+    }
   }
 
   void handleExternalWallet(ExternalWalletResponse response) {

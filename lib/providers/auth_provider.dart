@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/shopify_client.dart';
+import '../services/notification_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   String? _accessToken;
@@ -110,6 +111,13 @@ class AuthProvider extends ChangeNotifier {
     if (result.hasException) return;
 
     _customer = result.data?['customer'];
+    if (_customer != null) {
+      NotificationService().syncTokenWithBackend(
+        customerId: _customer!['id']?.toString(),
+        email: _customer!['email']?.toString(),
+        phone: _customer!['phone']?.toString(),
+      );
+    }
     notifyListeners();
   }
 
@@ -186,6 +194,7 @@ query getCustomer($accessToken: String!) {
     firstName
     lastName
     email
+    phone
     orders(first: 10) {
       edges {
         node {

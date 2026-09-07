@@ -122,6 +122,8 @@ class _CustomerOrdersState extends State<CustomerOrders> {
 
                 financialStatus
                 fulfillmentStatus
+                canceledAt
+                cancelReason
                 customerUrl
 
                 lineItems(first: 5) {
@@ -202,13 +204,53 @@ class _CustomerOrdersState extends State<CustomerOrders> {
 			_paginationLoading = false;
 			_paginationInfo = result.data!['customer']['orders']['pageInfo'];
 		});
+
+		_checkAndOpenSpecificOrder();
+	}
+
+	bool _hasAutoNavigated = false;
+
+	void _checkAndOpenSpecificOrder() {
+		if (_hasAutoNavigated || _orders == null || !mounted) return;
+
+		final args = ModalRoute.of(context)?.settings.arguments;
+		if (args is Map) {
+			final targetNumber = args['orderNumber']?.toString().replaceAll(RegExp(r'[^0-9]'), '');
+			final targetId = args['orderId']?.toString().replaceAll(RegExp(r'[^0-9]'), '');
+
+			if ((targetNumber != null && targetNumber.isNotEmpty) || (targetId != null && targetId.isNotEmpty)) {
+				for (final edge in _orders!) {
+					final node = edge['node'];
+					if (node == null) continue;
+
+					final orderName = node['name']?.toString().replaceAll(RegExp(r'[^0-9]'), '') ?? '';
+					final orderId = node['id']?.toString().replaceAll(RegExp(r'[^0-9]'), '') ?? '';
+
+					if ((targetNumber != null && targetNumber.isNotEmpty && orderName == targetNumber) ||
+							(targetId != null && targetId.isNotEmpty && orderId.contains(targetId))) {
+						_hasAutoNavigated = true;
+						WidgetsBinding.instance.addPostFrameCallback((_) {
+							if (mounted) {
+								Navigator.push(
+									context,
+									MaterialPageRoute(
+										builder: (_) => OrderDetailsPage(order: node),
+									),
+								);
+							}
+						});
+						break;
+					}
+				}
+			}
+		}
 	}
 
 	@override
 	void initState() {
 		super.initState();
 		WidgetsBinding.instance.addPostFrameCallback((_) async {
-			_getOrders();
+			await _getOrders();
 		});
   }
 
@@ -344,12 +386,17 @@ class _CustomerOrdersState extends State<CustomerOrders> {
 																			Builder(
 																				builder: (context) {
 
+																					final canceledAt = edge['node']['canceledAt'];
 																					final fulfillmentStatus = edge['node']['fulfillmentStatus'] ?? "";
 
 																					String text = "Processing";
 																					Color textColor = Colors.orange;
 
-																					if (fulfillmentStatus == "FULFILLED") {
+																					if (canceledAt != null) {
+																						text = "Cancelled";
+																						textColor = Colors.red;
+																					}
+																					else if (fulfillmentStatus == "FULFILLED") {
 																						text = "Delivered";
 																						textColor = Colors.green;
 																					}

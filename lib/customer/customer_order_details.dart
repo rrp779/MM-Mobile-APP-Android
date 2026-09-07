@@ -97,13 +97,18 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
 
     final discount = totalMrp - discountedMrp;
 
+    final canceledAt = widget.order['canceledAt'];
     final fulfillmentStatus = widget.order['fulfillmentStatus'] ?? "";
 
     String statusText = "Processing";
     Color statusColor = Colors.orange;
     Color statusBg = Colors.orange.shade50;
 
-    if (fulfillmentStatus == "FULFILLED") {
+    if (canceledAt != null) {
+      statusText = "Cancelled";
+      statusColor = Colors.red;
+      statusBg = Colors.red.shade50;
+    } else if (fulfillmentStatus == "FULFILLED") {
       statusText = "Delivered";
       statusColor = Colors.green;
       statusBg = Colors.green.shade50;

@@ -19,6 +19,8 @@ import 'screens/brands_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/product_detail_screen.dart';
 import 'screens/collection_products_screen.dart';
+import 'customer/customer_orders.dart';
+import 'services/notification_service.dart';
 
 // Providers
 import 'providers/auth_provider.dart';
@@ -125,26 +127,64 @@ class _MyAppState extends State<MyApp> {
   }
 
   void setupFCM() async {
-    FirebaseMessaging messaging = FirebaseMessaging.instance;
-
-    await messaging.requestPermission();
-
-    String? token = await messaging.getToken();
-    print("🔥 FCM Token: $token");
+    await NotificationService().initialize();
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       final context = navigatorKey.currentContext;
+      final notifTitle = message.notification?.title ?? message.data['title'] ?? "Order Update";
+      final notifBody = message.notification?.body ?? message.data['body'] ?? "New notification received";
+
       if (context != null) {
         final provider =
-        Provider.of<NotificationProvider>(context, listen: false);
+            Provider.of<NotificationProvider>(context, listen: false);
         provider.addNotification(
           AppNotification(
-            title: message.notification?.title ?? "No Title",
-            body: message.notification?.body ?? "No Body",
+            title: notifTitle,
+            body: notifBody,
             time: DateTime.now(),
             type: message.data['type'],
-            handle: message.data['handle'],
-            titleArg: message.data['title'],
+            handle: message.data['handle'] ?? message.data['order_id'],
+            titleArg: message.data['title'] ?? message.data['order_number'],
+          ),
+        );
+
+        // Show in-app banner for instant visual feedback when app is in foreground
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.notifications_active, color: Colors.white),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        notifTitle,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      Text(
+                        notifBody,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFFEA0180),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: "VIEW",
+              textColor: Colors.white,
+              onPressed: () {
+                handleNotificationNavigation(message);
+              },
+            ),
           ),
         );
       }
@@ -159,13 +199,49 @@ class _MyAppState extends State<MyApp> {
       navigatorKey.currentState?.pushNamed('/notifications');
       return;
     }
-    final type = data['type'];
+
+    final type = data['type']?.toString().toLowerCase();
+    final status = data['status']?.toString().toLowerCase();
+
+    // 1. Payment Failed / Cart Abandoned -> Go to Cart
+    if (status == 'payment_failed' || type == 'cart') {
+      navigatorKey.currentState?.pushNamed('/cart');
+      return;
+    }
+
+    // 2. Order Updates -> Go to specific Order
+    if (type == 'order' || data['order_number'] != null || data['order_id'] != null) {
+      String? orderNumber = data['order_number']?.toString();
+      if (orderNumber == null || orderNumber.isEmpty) {
+        final title = data['title']?.toString() ?? message.notification?.title ?? "";
+        final body = data['body']?.toString() ?? message.notification?.body ?? "";
+        final match = RegExp(r'#(\d+)').firstMatch("$title $body");
+        if (match != null) {
+          orderNumber = "#${match.group(1)}";
+        }
+      }
+
+      navigatorKey.currentState?.pushNamed(
+        '/orders',
+        arguments: {
+          "orderNumber": orderNumber,
+          "orderId": data['order_id'] ?? data['handle'],
+        },
+      );
+      return;
+    }
+
+    // 3. Product
     if (type == 'product') {
       navigatorKey.currentState?.pushNamed(
         '/product',
         arguments: data['handle'],
       );
-    } else if (type == 'collection') {
+      return;
+    }
+
+    // 4. Collection
+    if (type == 'collection') {
       navigatorKey.currentState?.pushNamed(
         '/collection',
         arguments: {
@@ -174,11 +250,10 @@ class _MyAppState extends State<MyApp> {
           "title": data['title'] ?? "Collection",
         },
       );
-    } else if (type == 'cart') {
-      navigatorKey.currentState?.pushNamed('/cart');
-    } else {
-      navigatorKey.currentState?.pushNamed('/notifications');
+      return;
     }
+
+    navigatorKey.currentState?.pushNamed('/notifications');
   }
   @override
   Widget build(BuildContext context) {
@@ -195,6 +270,7 @@ class _MyAppState extends State<MyApp> {
         '/cart': (context) => const CartPage(),
         '/login': (context) => const CustomerLoginRegister(),
         '/notifications': (context) => const NotificationScreen(),
+        '/orders': (context) => const CustomerOrders(),
         '/product': (context) {
           final args = ModalRoute.of(context)!.settings.arguments;
           return ProductDetailScreen(productId: args as String);
