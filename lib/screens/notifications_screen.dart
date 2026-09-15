@@ -67,13 +67,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
         queryParams['customerId'] = customerId.trim();
       }
 
-      if (queryParams.isEmpty) {
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      final uri = Uri.parse("${BackendConfig.baseUrl}/notifications/history")
-          .replace(queryParameters: queryParams);
+      final uri = queryParams.isNotEmpty
+          ? Uri.parse("${BackendConfig.baseUrl}/notifications/history").replace(queryParameters: queryParams)
+          : Uri.parse("${BackendConfig.baseUrl}/notifications/history");
 
       final response = await http.get(uri);
 
@@ -248,8 +244,38 @@ class _NotificationScreenState extends State<NotificationScreen> {
       return;
     }
 
-    // 2. Order updates -> Open specific order
-    if (cleanType == 'order' || cleanType == 'order_update' || titleArg != null || handle != null) {
+    // 2. Product deep-link
+    if ((cleanType == 'product' || cleanStatus == 'product') && handle != null && handle.isNotEmpty) {
+      Navigator.pushNamed(
+        context,
+        '/product',
+        arguments: handle,
+      );
+      return;
+    }
+
+    // 3. Collection / Flash Sale / Promotional deep-link
+    if (cleanType == 'collection' ||
+        cleanType == 'flash_sale' ||
+        cleanType == 'promotional' ||
+        cleanStatus == 'flash_sale' ||
+        cleanStatus == 'promotional') {
+      if (handle != null && handle.isNotEmpty) {
+        Navigator.pushNamed(
+          context,
+          '/collection',
+          arguments: {
+            "collectionId": handle,
+            "handle": handle,
+            "title": titleArg ?? (cleanStatus == 'flash_sale' ? "⚡ Flash Sale" : "Exclusive Offers"),
+          },
+        );
+        return;
+      }
+    }
+
+    // 4. Order updates -> Open specific order
+    if (cleanType == 'order' || cleanType == 'order_update' || cleanStatus.startsWith('order_')) {
       String? orderNum = _extractOrderNumber(titleArg);
       if (orderNum == null && rawItem != null) {
         orderNum = _extractOrderNumber(rawItem['title']) ?? _extractOrderNumber(rawItem['body']);
@@ -266,25 +292,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
       return;
     }
 
-    // 3. Product deep-link
-    if (cleanType == 'product' && handle != null && handle.isNotEmpty) {
-      Navigator.pushNamed(
-        context,
-        '/product',
-        arguments: handle,
-      );
-      return;
-    }
-
-    // 4. Collection deep-link
-    if (cleanType == 'collection' && handle != null && handle.isNotEmpty) {
+    // 5. Fallback if handle exists -> Collection or Home
+    if (handle != null && handle.isNotEmpty) {
       Navigator.pushNamed(
         context,
         '/collection',
         arguments: {
           "collectionId": handle,
           "handle": handle,
-          "title": titleArg ?? "Collection",
+          "title": titleArg ?? "Special Collection",
         },
       );
       return;
@@ -296,6 +312,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   IconData _getStatusIcon(String? status) {
     switch (status?.toLowerCase()) {
+      case 'flash_sale':
+        return Icons.bolt;
+      case 'promotional':
+        return Icons.local_offer_outlined;
       case 'order_placed':
       case 'order_confirmed':
         return Icons.check_circle_outline;
@@ -317,6 +337,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   Color _getStatusColor(String? status) {
     switch (status?.toLowerCase()) {
+      case 'flash_sale':
+        return const Color(0xFFFF6D00); // Electric Amber / Orange
+      case 'promotional':
+        return const Color(0xFFEA0180); // Brand Pink
       case 'order_placed':
       case 'order_confirmed':
         return const Color(0xFF2E7D32); // Green
@@ -375,15 +399,43 @@ class _NotificationScreenState extends State<NotificationScreen> {
           } catch (_) {}
         }
         final isPaymentFailed = (r["status"]?.toString().toLowerCase() == "payment_failed");
+        final isBroadcast = (r["isBroadcast"] == true);
+        final status = r["status"]?.toString().toLowerCase() ?? "";
+        final data = r["data"] is Map ? Map<String, dynamic>.from(r["data"]) : null;
+
+        String notifType = "order";
+        if (isPaymentFailed) {
+          notifType = "cart";
+        } else if (status == "flash_sale" || status == "promotional" || isBroadcast) {
+          notifType = data?["type"]?.toString() ?? "collection";
+        }
+
+        String? notifHandle;
+        if (isBroadcast) {
+          notifHandle = data?["handle"]?.toString();
+        } else {
+          notifHandle = r["orderId"]?.toString();
+        }
+
+        String? notifTitleArg;
+        if (isBroadcast) {
+          notifTitleArg = data?["title"]?.toString();
+        } else {
+          notifTitleArg = r["orderNumber"]?.toString() ?? _extractOrderNumber(r["title"]);
+        }
+
         allItems.add({
           "_id": id,
-          "title": r["title"] ?? "Order Update",
+          "title": r["title"] ?? (isBroadcast ? "Special Offer" : "Order Update"),
           "body": r["body"] ?? "",
           "time": dt,
-          "type": isPaymentFailed ? "cart" : "order",
+          "type": notifType,
           "status": r["status"],
-          "handle": r["orderId"]?.toString(),
-          "titleArg": r["orderNumber"]?.toString() ?? _extractOrderNumber(r["title"]),
+          "imageUrl": r["imageUrl"] ?? data?["imageUrl"],
+          "handle": notifHandle,
+          "titleArg": notifTitleArg,
+          "isBroadcast": isBroadcast,
+          "raw": r,
         });
       }
     }
@@ -397,13 +449,25 @@ class _NotificationScreenState extends State<NotificationScreen> {
         seenKeys.add(key);
         final isPaymentFailed = (l.type?.toLowerCase() == "payment_failed") ||
             (l.title.toLowerCase().contains("failed"));
+        final isFlashSale = (l.type?.toLowerCase() == "flash_sale") || (l.title.toLowerCase().contains("flash sale"));
+        final isPromo = (l.type?.toLowerCase() == "promotional") || (l.type?.toLowerCase() == "promo");
+
+        String localStatus = l.type ?? "order";
+        if (isPaymentFailed) {
+          localStatus = "payment_failed";
+        } else if (isFlashSale) {
+          localStatus = "flash_sale";
+        } else if (isPromo) {
+          localStatus = "promotional";
+        }
+
         allItems.add({
           "_id": "",
           "title": l.title,
           "body": l.body,
           "time": l.time,
           "type": isPaymentFailed ? "cart" : (l.type ?? "order"),
-          "status": isPaymentFailed ? "payment_failed" : l.type,
+          "status": localStatus,
           "handle": l.handle,
           "titleArg": l.titleArg ?? _extractOrderNumber(l.title),
         });
@@ -601,6 +665,46 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                               height: 1.35,
                                             ),
                                           ),
+                                          if (item['imageUrl'] != null &&
+                                              item['imageUrl'].toString().trim().isNotEmpty) ...[
+                                            const SizedBox(height: 8),
+                                            ClipRRect(
+                                              borderRadius: BorderRadius.circular(8),
+                                              child: Image.network(
+                                                item['imageUrl'].toString().trim(),
+                                                width: double.infinity,
+                                                height: 130,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error, stackTrace) =>
+                                                    const SizedBox.shrink(),
+                                              ),
+                                            ),
+                                          ],
+                                          if (item['status']?.toString().toLowerCase() == 'flash_sale') ...[
+                                            const SizedBox(height: 8),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFFF6D00).withValues(alpha: 0.12),
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: const Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.bolt, size: 14, color: Color(0xFFFF6D00)),
+                                                  SizedBox(width: 4),
+                                                  Text(
+                                                    "Limited Time Deal",
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Color(0xFFFF6D00),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
                                         ],
                                       ),
                                     ),

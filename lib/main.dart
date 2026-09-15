@@ -209,7 +209,36 @@ class _MyAppState extends State<MyApp> {
       return;
     }
 
-    // 2. Order Updates -> Go to specific Order
+    // 2. Product deep-link
+    if (type == 'product' && data['handle'] != null && data['handle'].toString().isNotEmpty) {
+      navigatorKey.currentState?.pushNamed(
+        '/product',
+        arguments: data['handle'],
+      );
+      return;
+    }
+
+    // 3. Collection / Flash Sale / Promotional deep-link
+    if (type == 'collection' ||
+        type == 'flash_sale' ||
+        type == 'promotional' ||
+        status == 'flash_sale' ||
+        status == 'promotional') {
+      final handle = data['handle']?.toString() ?? "";
+      if (handle.isNotEmpty) {
+        navigatorKey.currentState?.pushNamed(
+          '/collection',
+          arguments: {
+            "collectionId": handle,
+            "handle": handle,
+            "title": data['title'] ?? (status == 'flash_sale' ? "⚡ Flash Sale" : "Exclusive Offers"),
+          },
+        );
+        return;
+      }
+    }
+
+    // 4. Order Updates -> Go to specific Order
     if (type == 'order' || data['order_number'] != null || data['order_id'] != null) {
       String? orderNumber = data['order_number']?.toString();
       if (orderNumber == null || orderNumber.isEmpty) {
@@ -226,28 +255,6 @@ class _MyAppState extends State<MyApp> {
         arguments: {
           "orderNumber": orderNumber,
           "orderId": data['order_id'] ?? data['handle'],
-        },
-      );
-      return;
-    }
-
-    // 3. Product
-    if (type == 'product') {
-      navigatorKey.currentState?.pushNamed(
-        '/product',
-        arguments: data['handle'],
-      );
-      return;
-    }
-
-    // 4. Collection
-    if (type == 'collection') {
-      navigatorKey.currentState?.pushNamed(
-        '/collection',
-        arguments: {
-          "collectionId": data['handle'],
-          "handle": data['handle'],
-          "title": data['title'] ?? "Collection",
         },
       );
       return;

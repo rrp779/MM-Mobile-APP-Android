@@ -58,6 +58,20 @@ class NotificationService {
         }
         await syncTokenWithBackend(token: newToken);
       });
+
+      // 4. Subscribe to Broadcast Topics for promotional and flash sale alerts
+      try {
+        await messaging.subscribeToTopic('all_users');
+        await messaging.subscribeToTopic('promotions');
+        await messaging.subscribeToTopic('flash_sales');
+        if (kDebugMode) {
+          print("[NotificationService] Successfully subscribed to topics: all_users, promotions, flash_sales");
+        }
+      } catch (topicError) {
+        if (kDebugMode) {
+          print("[NotificationService] Error subscribing to topics: $topicError");
+        }
+      }
     } catch (e) {
       if (kDebugMode) {
         print("[NotificationService] Initialization error: $e");
