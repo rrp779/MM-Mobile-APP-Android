@@ -42,32 +42,42 @@ class InnerPageAppBar extends StatelessWidget
                 children: [
 
                   /// 🔙 BACK ARROW + TITLE
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: AppIcon(
-                          isActive: false,
-                          outlinePath: 'assets/icons/ArrowLeft.svg',
-                          filledPath: 'assets/icons/ArrowLeft.svg',
+                  Expanded(
+                    child: Row(
+                      children: [
+                        IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: AppIcon(
+                            isActive: false,
+                            outlinePath: 'assets/icons/ArrowLeft.svg',
+                            filledPath: 'assets/icons/ArrowLeft.svg',
+                          ),
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
                         ),
-                        onPressed: () {
-                          Navigator.pop(context);
-                        },
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black,
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
 
                   /// RIGHT SIDE ICONS
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
 
                       /// 🔔 Notification
