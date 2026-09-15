@@ -23,34 +23,35 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> startApp() async {
-    try {
-      /// optional delay
-      await Future.delayed(const Duration(seconds: 2));
-    } catch (e) {
-      print("Splash error: $e");
-    }
-
-    if (!mounted) return;
-
-    // Check if the app was launched by tapping a notification
     RemoteMessage? initialMessage;
+
+    // Fetch initial message and splash delay concurrently
     try {
-      initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+      await Future.wait([
+        Future.delayed(const Duration(milliseconds: 1500)),
+        () async {
+          try {
+            initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+          } catch (e) {
+            debugPrint("[SplashScreen] Error reading initial message: $e");
+          }
+        }(),
+      ]);
     } catch (e) {
-      debugPrint("[SplashScreen] Error reading initial message: $e");
+      debugPrint("[SplashScreen] Splash error: $e");
     }
 
     if (!mounted) return;
 
-    // First, navigate to HomeScreen so that a proper root and backstack exist
-    await Navigator.pushReplacement(
+    // Transition to HomeScreen without awaiting pop
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const HomeScreen()),
     );
 
-    // If opened via notification, immediately navigate to target screen on top of HomeScreen
+    // If launched from a notification, push target screen on top of HomeScreen
     if (initialMessage != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 300), () {
         handleNotificationNavigation(initialMessage!);
       });
     }
