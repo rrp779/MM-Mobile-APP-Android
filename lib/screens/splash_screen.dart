@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import '../main.dart';
 import 'home_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -30,10 +32,28 @@ class _SplashScreenState extends State<SplashScreen> {
 
     if (!mounted) return;
 
-    Navigator.pushReplacement(
+    // Check if the app was launched by tapping a notification
+    RemoteMessage? initialMessage;
+    try {
+      initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    } catch (e) {
+      debugPrint("[SplashScreen] Error reading initial message: $e");
+    }
+
+    if (!mounted) return;
+
+    // First, navigate to HomeScreen so that a proper root and backstack exist
+    await Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const HomeScreen()),
     );
+
+    // If opened via notification, immediately navigate to target screen on top of HomeScreen
+    if (initialMessage != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        handleNotificationNavigation(initialMessage!);
+      });
+    }
   }
 
   @override

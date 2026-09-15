@@ -88,6 +88,76 @@ Future<void> main() async {
   );
 }
 
+void handleNotificationNavigation(RemoteMessage message) {
+  final data = message.data;
+  if (data.isEmpty) {
+    navigatorKey.currentState?.pushNamed('/notifications');
+    return;
+  }
+
+  final type = data['type']?.toString().toLowerCase();
+  final status = data['status']?.toString().toLowerCase();
+
+  // 1. Payment Failed / Cart Abandoned -> Go to Cart
+  if (status == 'payment_failed' || type == 'cart') {
+    navigatorKey.currentState?.pushNamed('/cart');
+    return;
+  }
+
+  // 2. Product deep-link
+  if (type == 'product' && data['handle'] != null && data['handle'].toString().isNotEmpty) {
+    navigatorKey.currentState?.pushNamed(
+      '/product',
+      arguments: data['handle'],
+    );
+    return;
+  }
+
+  // 3. Collection / Flash Sale / Promotional deep-link
+  if (type == 'collection' ||
+      type == 'flash_sale' ||
+      type == 'promotional' ||
+      status == 'flash_sale' ||
+      status == 'promotional') {
+    final handle = data['handle']?.toString() ?? "";
+    if (handle.isNotEmpty) {
+      navigatorKey.currentState?.pushNamed(
+        '/collection',
+        arguments: {
+          "collectionId": handle,
+          "handle": handle,
+          "title": data['title'] ?? (status == 'flash_sale' ? "⚡ Flash Sale" : "Exclusive Offers"),
+        },
+      );
+      return;
+    }
+  }
+
+  // 4. Order Updates -> Go to specific Order
+  if (type == 'order' || data['order_number'] != null || data['order_id'] != null) {
+    String? orderNumber = data['order_number']?.toString();
+    if (orderNumber == null || orderNumber.isEmpty) {
+      final title = data['title']?.toString() ?? message.notification?.title ?? "";
+      final body = data['body']?.toString() ?? message.notification?.body ?? "";
+      final match = RegExp(r'#(\d+)').firstMatch("$title $body");
+      if (match != null) {
+        orderNumber = "#${match.group(1)}";
+      }
+    }
+
+    navigatorKey.currentState?.pushNamed(
+      '/orders',
+      arguments: {
+        "orderNumber": orderNumber,
+        "orderId": data['order_id'] ?? data['handle'],
+      },
+    );
+    return;
+  }
+
+  navigatorKey.currentState?.pushNamed('/notifications');
+}
+
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -111,17 +181,6 @@ class _MyAppState extends State<MyApp> {
         await auth.restoreSession();
       } catch (e) {
         print("Auth error: $e");
-      }
-
-      try {
-        final initialMessage =
-        await FirebaseMessaging.instance.getInitialMessage();
-
-        if (initialMessage != null) {
-          handleNotificationNavigation(initialMessage);
-        }
-      } catch (e) {
-        print("Notification error: $e");
       }
     });
   }
@@ -193,75 +252,7 @@ class _MyAppState extends State<MyApp> {
       handleNotificationNavigation(message);
     });
   }
-  void handleNotificationNavigation(RemoteMessage message) {
-    final data = message.data;
-    if (data.isEmpty) {
-      navigatorKey.currentState?.pushNamed('/notifications');
-      return;
-    }
 
-    final type = data['type']?.toString().toLowerCase();
-    final status = data['status']?.toString().toLowerCase();
-
-    // 1. Payment Failed / Cart Abandoned -> Go to Cart
-    if (status == 'payment_failed' || type == 'cart') {
-      navigatorKey.currentState?.pushNamed('/cart');
-      return;
-    }
-
-    // 2. Product deep-link
-    if (type == 'product' && data['handle'] != null && data['handle'].toString().isNotEmpty) {
-      navigatorKey.currentState?.pushNamed(
-        '/product',
-        arguments: data['handle'],
-      );
-      return;
-    }
-
-    // 3. Collection / Flash Sale / Promotional deep-link
-    if (type == 'collection' ||
-        type == 'flash_sale' ||
-        type == 'promotional' ||
-        status == 'flash_sale' ||
-        status == 'promotional') {
-      final handle = data['handle']?.toString() ?? "";
-      if (handle.isNotEmpty) {
-        navigatorKey.currentState?.pushNamed(
-          '/collection',
-          arguments: {
-            "collectionId": handle,
-            "handle": handle,
-            "title": data['title'] ?? (status == 'flash_sale' ? "⚡ Flash Sale" : "Exclusive Offers"),
-          },
-        );
-        return;
-      }
-    }
-
-    // 4. Order Updates -> Go to specific Order
-    if (type == 'order' || data['order_number'] != null || data['order_id'] != null) {
-      String? orderNumber = data['order_number']?.toString();
-      if (orderNumber == null || orderNumber.isEmpty) {
-        final title = data['title']?.toString() ?? message.notification?.title ?? "";
-        final body = data['body']?.toString() ?? message.notification?.body ?? "";
-        final match = RegExp(r'#(\d+)').firstMatch("$title $body");
-        if (match != null) {
-          orderNumber = "#${match.group(1)}";
-        }
-      }
-
-      navigatorKey.currentState?.pushNamed(
-        '/orders',
-        arguments: {
-          "orderNumber": orderNumber,
-          "orderId": data['order_id'] ?? data['handle'],
-        },
-      );
-      return;
-    }
-
-    navigatorKey.currentState?.pushNamed('/notifications');
-  }
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
