@@ -34,19 +34,107 @@ class CartPage extends StatelessWidget {
           ),
         ),
       ),
-      bottomNavigationBar: _checkoutSection(context, cart),
-      body: cart.lines.isEmpty
-          ? const Center(child: Text("Your bag is empty"))
-          : ListView(
-        padding: const EdgeInsets.only(bottom: 160),
-        children: [
-          /// 🔹 CART ITEMS
-          ...cart.lines.map(
-                (line) => _modernCartItem(context, line),
-          ),
-          const SizedBox(height: 20),
-        ],
-      ),
+      bottomNavigationBar:
+          cart.lines.isEmpty ? null : _checkoutSection(context, cart),
+      body: cart.isLoading && cart.lines.isEmpty
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFFEA0180),
+              ),
+            )
+          : cart.lines.isEmpty
+              ? RefreshIndicator(
+                  onRefresh: () => cart.fetchCart(),
+                  color: const Color(0xFFEA0180),
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: Container(
+                      height: MediaQuery.of(context).size.height * 0.7,
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 88,
+                            height: 88,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFFDE7F3),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.shopping_bag_outlined,
+                              size: 46,
+                              color: Color(0xFFEA0180),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          const Text(
+                            "Your Bag is Empty",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1E1E2D),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            "Looks like you haven't added anything to your bag yet. Explore our collections and discover something you love!",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade600,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          ElevatedButton(
+                            onPressed: () {
+                              Navigator.pushNamedAndRemoveUntil(
+                                context,
+                                '/home',
+                                (route) => false,
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFEA0180),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 28,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text(
+                              "Start Shopping",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: () => cart.fetchCart(),
+                  color: const Color(0xFFEA0180),
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(bottom: 160),
+                    children: [
+                      /// 🔹 CART ITEMS
+                      ...cart.lines.map(
+                        (line) => _modernCartItem(context, line),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
     );
   }
 

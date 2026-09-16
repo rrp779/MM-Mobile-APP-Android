@@ -1,14 +1,23 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/shopify_client.dart';
 
 class CartProvider with ChangeNotifier {
+  static const String _storageCartIdKey = 'shopify_cart_id';
+  static const String _storageCartCacheKey = 'shopify_cart_cache';
+
   String? _cartId;
   String? _checkoutUrl;
 
   List<Map<String, dynamic>> _lines = [];
 
   bool _isLoading = false;
+
+  CartProvider() {
+    loadCartFromStorage();
+  }
 
   /// ---------------- GETTERS ----------------
 
@@ -43,6 +52,149 @@ class CartProvider with ChangeNotifier {
     );
   }
 
+  /// ---------------- PERSISTENCE & SYNC ----------------
+
+  Future<void> _saveCartToStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (_cartId != null && _lines.isNotEmpty) {
+        await prefs.setString(_storageCartIdKey, _cartId!);
+        await prefs.setString(
+          _storageCartCacheKey,
+          jsonEncode({
+            'cartId': _cartId,
+            'checkoutUrl': _checkoutUrl,
+            'lines': _lines,
+            'appliedCoupon': _appliedCoupon,
+            'couponDiscount': _couponDiscount,
+          }),
+        );
+      } else if (_lines.isEmpty) {
+        await prefs.remove(_storageCartIdKey);
+        await prefs.remove(_storageCartCacheKey);
+      }
+    } catch (e) {
+      debugPrint('Error saving cart to storage: $e');
+    }
+  }
+
+  Future<void> _clearCartStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_storageCartIdKey);
+      await prefs.remove(_storageCartCacheKey);
+    } catch (e) {
+      debugPrint('Error clearing cart storage: $e');
+    }
+  }
+
+  Future<void> loadCartFromStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedCartId = prefs.getString(_storageCartIdKey);
+      final cachedData = prefs.getString(_storageCartCacheKey);
+
+      if (savedCartId != null && savedCartId.isNotEmpty) {
+        _cartId = savedCartId;
+
+        // 1. Immediately restore state from cache for zero-latency UI
+        if (cachedData != null) {
+          try {
+            final decoded = jsonDecode(cachedData) as Map<String, dynamic>;
+            _checkoutUrl = decoded['checkoutUrl'] as String?;
+            _appliedCoupon = decoded['appliedCoupon'] as String?;
+            _couponDiscount =
+                (decoded['couponDiscount'] as num?)?.toDouble() ?? 0;
+            if (decoded['lines'] is List) {
+              _lines = (decoded['lines'] as List)
+                  .map((e) => Map<String, dynamic>.from(e as Map))
+                  .toList();
+            }
+            notifyListeners();
+          } catch (e) {
+            debugPrint('Error restoring cached cart data: $e');
+          }
+        }
+
+        // 2. Fetch fresh cart state from Shopify in background
+        await fetchCart();
+      }
+    } catch (e) {
+      debugPrint('Error loading cart from storage: $e');
+    }
+  }
+
+  Future<void> fetchCart() async {
+    if (_cartId == null) return;
+
+    try {
+      final client = getShopifyClient();
+      const query = r'''
+      query GetCart($cartId: ID!) {
+        cart(id: $cartId) {
+          id
+          checkoutUrl
+          lines(first: 50) {
+            edges {
+              node {
+                id
+                quantity
+                merchandise {
+                  ... on ProductVariant {
+                    id
+                    title
+                    image { url }
+                    product { title handle }
+                    price { amount }
+                    compareAtPrice { amount }
+                  }
+                }
+              }
+            }
+          }
+          discountCodes {
+            code
+            applicable
+          }
+          discountAllocations {
+            discountedAmount { amount }
+            ... on CartCodeDiscountAllocation {
+              code
+            }
+          }
+          cost {
+            subtotalAmount { amount }
+            totalAmount { amount }
+          }
+        }
+      }
+      ''';
+
+      final result = await client.query(
+        QueryOptions(
+          document: gql(query),
+          variables: {"cartId": _cartId},
+          fetchPolicy: FetchPolicy.networkOnly,
+        ),
+      );
+
+      if (result.hasException) {
+        debugPrint("Error fetching cart from Shopify: ${result.exception}");
+        return;
+      }
+
+      final cart = result.data?['cart'];
+      if (cart == null) {
+        // Cart expired or does not exist on Shopify
+        resetCartState();
+      } else {
+        _updateCartFromResponse(cart);
+      }
+    } catch (e) {
+      debugPrint("Exception fetching cart: $e");
+    }
+  }
+
   /// ---------------- CREATE CART ----------------
 
   Future<void> _createCart() async {
@@ -73,6 +225,7 @@ class CartProvider with ChangeNotifier {
     _cartId = cart['id'];
     _checkoutUrl = cart['checkoutUrl'];
 
+    await _saveCartToStorage();
     notifyListeners();
   }
 
@@ -151,8 +304,32 @@ class CartProvider with ChangeNotifier {
       ),
     );
 
-    if (result.hasException) {
-      debugPrint(result.exception.toString());
+    if (result.hasException || result.data?['cartLinesAdd']?['cart'] == null) {
+      debugPrint("addToCart error: ${result.exception}");
+      // If the cart on Shopify has expired or is invalid, re-create and retry once
+      _cartId = null;
+      await _clearCartStorage();
+      await _createCart();
+      if (_cartId != null) {
+        final retryResult = await client.mutate(
+          MutationOptions(
+            document: gql(mutation),
+            variables: {
+              "cartId": _cartId,
+              "lines": [
+                {
+                  "merchandiseId": variantId,
+                  "quantity": quantity,
+                }
+              ],
+            },
+          ),
+        );
+        if (retryResult.data?['cartLinesAdd']?['cart'] != null) {
+          _updateCartFromResponse(retryResult.data!['cartLinesAdd']['cart']);
+          return;
+        }
+      }
       _isLoading = false;
       notifyListeners();
       return;
@@ -296,19 +473,30 @@ class CartProvider with ChangeNotifier {
     for (var id in ids) {
       await removeItem(id);
     }
+    if (_lines.isEmpty) {
+      await _clearCartStorage();
+    }
   }
 
   /// ---------------- HELPER ----------------
 
   void _updateCartFromResponse(Map<String, dynamic> cart) {
+    if (cart['id'] != null) {
+      _cartId = cart['id'].toString();
+    }
     _checkoutUrl = cart['checkoutUrl'];
 
-    _lines = (cart['lines']['edges'] as List)
-        .map((e) => e['node'] as Map<String, dynamic>)
-        .toList();
+    if (cart['lines'] != null && cart['lines']['edges'] != null) {
+      _lines = (cart['lines']['edges'] as List)
+          .map((e) => e['node'] as Map<String, dynamic>)
+          .toList();
+    }
+
+    _syncCouponStateFromCart(cart);
 
     _isLoading = false;
     notifyListeners();
+    _saveCartToStorage();
   }
 
   double get totalMrp {
@@ -615,6 +803,7 @@ class CartProvider with ChangeNotifier {
     _appliedCoupon = null;
     _couponDiscount = 0;
     _isLoading = false;
+    _clearCartStorage();
     notifyListeners();
   }
 }
