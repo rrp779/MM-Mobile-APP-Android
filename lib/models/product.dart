@@ -8,6 +8,8 @@ class Product {
   final List<String> images;
   final List<ProductVariant> variants;
   final String? brandTitle;
+  final String? vendor;
+  final List<String> tags;
 
   Product({
     required this.id,
@@ -17,6 +19,8 @@ class Product {
     required this.images,
     required this.variants,
     this.brandTitle,
+    this.vendor,
+    this.tags = const [],
   });
 
   bool get isOutOfStock =>
@@ -108,6 +112,8 @@ class Product {
       descriptionHtml: json['descriptionHtml']?.toString() ?? '',
       variants: variants,
       brandTitle: brandTitle,
+      vendor: json['vendor']?.toString(),
+      tags: (json['tags'] as List?)?.map((e) => e.toString()).toList() ?? const [],
     );
   }
 }

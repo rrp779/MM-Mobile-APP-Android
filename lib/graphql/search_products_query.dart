@@ -5,6 +5,9 @@ query SearchProducts($query: String!) {
       node {
         id
         title
+        vendor
+        productType
+        tags
         descriptionHtml
         images(first: 5) {
           edges {
