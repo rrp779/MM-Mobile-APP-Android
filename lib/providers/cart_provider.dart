@@ -147,6 +147,7 @@ class CartProvider with ChangeNotifier {
                     product { title handle }
                     price { amount }
                     compareAtPrice { amount }
+                    quantityAvailable
                   }
                 }
               }
@@ -231,7 +232,7 @@ class CartProvider with ChangeNotifier {
 
   /// ---------------- ADD TO CART ----------------
 
-  Future<void> addToCart({
+  Future<String?> addToCart({
     required String variantId,
     int quantity = 1,
   }) async {
@@ -239,24 +240,28 @@ class CartProvider with ChangeNotifier {
       await _createCart();
     }
 
-    if (_cartId == null) return;
-
-    _isLoading = true;
-    notifyListeners();
+    if (_cartId == null) return "Failed to initialize cart";
 
     final existingLine = _lines
         .where((line) => line['merchandise']['id'] == variantId)
         .toList();
 
     if (existingLine.isNotEmpty) {
-      await updateQuantity(
+      final merch = existingLine.first['merchandise'];
+      final int? available =
+          merch != null ? (merch['quantityAvailable'] as int?) : null;
+      final int currentQty = existingLine.first['quantity'] as int;
+      if (available != null && (currentQty + quantity) > available) {
+        return "Only $available item${available == 1 ? '' : 's'} available in stock";
+      }
+      return await updateQuantity(
         lineId: existingLine.first['id'],
-        quantity: existingLine.first['quantity'] + quantity,
+        quantity: currentQty + quantity,
       );
-      _isLoading = false;
-      notifyListeners();
-      return;
     }
+
+    _isLoading = true;
+    notifyListeners();
 
     final client = getShopifyClient();
 
@@ -279,11 +284,20 @@ class CartProvider with ChangeNotifier {
                     product { title handle }
                     price { amount }
                     compareAtPrice { amount }
+                    quantityAvailable
                   }
                 }
               }
             }
           }
+        }
+        userErrors {
+          message
+          code
+        }
+        warnings {
+          code
+          message
         }
       }
     }
@@ -325,26 +339,64 @@ class CartProvider with ChangeNotifier {
             },
           ),
         );
-        if (retryResult.data?['cartLinesAdd']?['cart'] != null) {
-          _updateCartFromResponse(retryResult.data!['cartLinesAdd']['cart']);
-          return;
+        final retryPayload = retryResult.data?['cartLinesAdd'];
+        if (retryPayload?['cart'] != null) {
+          _updateCartFromResponse(retryPayload['cart']);
+          final warnings = retryPayload['warnings'] as List?;
+          if (warnings != null && warnings.isNotEmpty) {
+            for (final w in warnings) {
+              if (w['code'] == 'MERCHANDISE_NOT_ENOUGH_STOCK') {
+                return w['message']?.toString();
+              }
+            }
+          }
+          return null;
         }
       }
       _isLoading = false;
       notifyListeners();
-      return;
+      return "Unable to add product to cart";
     }
 
-    _updateCartFromResponse(result.data!['cartLinesAdd']['cart']);
+    final payload = result.data?['cartLinesAdd'];
+    final userErrors = payload?['userErrors'] as List?;
+    if (userErrors != null && userErrors.isNotEmpty) {
+      _isLoading = false;
+      notifyListeners();
+      return userErrors.first['message']?.toString() ?? "Unable to add item";
+    }
+
+    _updateCartFromResponse(payload['cart']);
+
+    final warnings = payload?['warnings'] as List?;
+    if (warnings != null && warnings.isNotEmpty) {
+      for (final w in warnings) {
+        if (w['code'] == 'MERCHANDISE_NOT_ENOUGH_STOCK') {
+          return w['message']?.toString();
+        }
+      }
+    }
+
+    return null;
   }
 
   /// ---------------- UPDATE QUANTITY ----------------
 
-  Future<void> updateQuantity({
+  Future<String?> updateQuantity({
     required String lineId,
     required int quantity,
   }) async {
-    if (_cartId == null) return;
+    if (_cartId == null) return null;
+
+    final existingLine = _lines.where((line) => line['id'] == lineId).toList();
+    if (existingLine.isNotEmpty) {
+      final merch = existingLine.first['merchandise'];
+      final int? available =
+          merch != null ? (merch['quantityAvailable'] as int?) : null;
+      if (available != null && quantity > available) {
+        return "Only $available item${available == 1 ? '' : 's'} available in stock";
+      }
+    }
 
     _isLoading = true;
     notifyListeners();
@@ -370,11 +422,21 @@ class CartProvider with ChangeNotifier {
                   product { title handle }
                   price { amount }
                   compareAtPrice { amount }
+                  quantityAvailable
                 }
               }
             }
           }
         }
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+      warnings {
+        code
+        message
       }
     }
   }
@@ -399,11 +461,36 @@ class CartProvider with ChangeNotifier {
       debugPrint(result.exception.toString());
       _isLoading = false;
       notifyListeners();
-      return;
+      return "Network error updating quantity";
     }
 
-    _updateCartFromResponse(
-        result.data!['cartLinesUpdate']['cart']);
+    final payload = result.data?['cartLinesUpdate'];
+    final userErrors = payload?['userErrors'] as List?;
+    if (userErrors != null && userErrors.isNotEmpty) {
+      _isLoading = false;
+      notifyListeners();
+      return userErrors.first['message']?.toString() ?? "Could not update quantity";
+    }
+
+    final warnings = payload?['warnings'] as List?;
+    String? stockWarning;
+    if (warnings != null && warnings.isNotEmpty) {
+      for (final w in warnings) {
+        if (w['code'] == 'MERCHANDISE_NOT_ENOUGH_STOCK') {
+          stockWarning = w['message']?.toString();
+          break;
+        }
+      }
+    }
+
+    if (payload?['cart'] != null) {
+      _updateCartFromResponse(payload['cart']);
+    } else {
+      _isLoading = false;
+      notifyListeners();
+    }
+
+    return stockWarning;
   }
 
   /// ---------------- REMOVE ITEM ----------------
@@ -435,6 +522,7 @@ class CartProvider with ChangeNotifier {
                   product { title handle }
                   price { amount }
                   compareAtPrice { amount }
+                  quantityAvailable
                 }
               }
             }

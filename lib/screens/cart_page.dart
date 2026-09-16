@@ -7,8 +7,6 @@ import 'checkout_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/login_bottom_sheet.dart';
 
-import '../models/product.dart';
-
 class CartPage extends StatelessWidget {
   const CartPage({super.key});
   String formatPrice(double amount) {
@@ -147,9 +145,12 @@ class CartPage extends StatelessWidget {
 
     final merchandise = line['merchandise'];
     final product = merchandise['product'];
-    final qty = line['quantity'];
-    final lineId = line['id'];
-
+    final int qty = (line['quantity'] as num?)?.toInt() ?? 1;
+    final lineId = line['id']?.toString() ?? "";
+    final int? quantityAvailable =
+        merchandise['quantityAvailable'] as int?;
+    final bool isMaxStockReached =
+        quantityAvailable != null && qty >= quantityAvailable;
 
     final price =
     double.parse(merchandise['price']['amount']);
@@ -166,7 +167,7 @@ class CartPage extends StatelessWidget {
         compareAt != null && compareAt > price;
 
     final int discountPercent = hasDiscount
-        ? (((compareAt! - price) / compareAt) * 100)
+        ? (((compareAt - price) / compareAt) * 100)
         .round()
         : 0;
 
@@ -226,7 +227,7 @@ class CartPage extends StatelessWidget {
                     if (hasDiscount) ...[
                       const SizedBox(width: 6),
                       Text(
-                        formatPrice(compareAt!),
+                        formatPrice(compareAt),
                         style: const TextStyle(
                           decoration:
                           TextDecoration.lineThrough,
@@ -243,6 +244,35 @@ class CartPage extends StatelessWidget {
                     ],
                   ],
                 ),
+
+                /// ⚠️ STOCK WARNING LABEL
+                if (isMaxStockReached) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 14, color: Colors.red.shade700),
+                      const SizedBox(width: 4),
+                      Text(
+                        "Max stock reached ($quantityAvailable in stock)",
+                        style: TextStyle(
+                          color: Colors.red.shade700,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else if (quantityAvailable != null && quantityAvailable <= 5) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    "Only $quantityAvailable left in stock",
+                    style: TextStyle(
+                      color: Colors.orange.shade800,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
 
                 const SizedBox(height: 12),
 
@@ -280,11 +310,41 @@ class CartPage extends StatelessWidget {
                           ),
                           _qtyButton(
                             icon: Icons.add,
-                            onTap: () {
-                              cart.updateQuantity(
+                            enabled: !isMaxStockReached,
+                            onTap: () async {
+                              if (isMaxStockReached) {
+                                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      "Only $quantityAvailable item${quantityAvailable == 1 ? '' : 's'} available in stock",
+                                      style: const TextStyle(fontWeight: FontWeight.w500),
+                                    ),
+                                    backgroundColor: const Color(0xFFE11D48),
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                                return;
+                              }
+                              final error = await cart.updateQuantity(
                                 lineId: lineId,
                                 quantity: qty + 1,
                               );
+                              if (error != null && context.mounted) {
+                                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      error,
+                                      style: const TextStyle(fontWeight: FontWeight.w500),
+                                    ),
+                                    backgroundColor: const Color(0xFFE11D48),
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              }
                             },
                           ),
                         ],
@@ -364,13 +424,18 @@ class CartPage extends StatelessWidget {
   Widget _qtyButton({
     required IconData icon,
     required VoidCallback onTap,
+    bool enabled = true,
   }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Padding(
         padding: const EdgeInsets.all(8),
-        child: Icon(icon, size: 18),
+        child: Icon(
+          icon,
+          size: 18,
+          color: enabled ? Colors.black : Colors.grey.shade400,
+        ),
       ),
     );
   }

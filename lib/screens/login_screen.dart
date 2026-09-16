@@ -198,11 +198,18 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
   }
 
   Future<void> sendWhatsAppOtp({bool forRegister = false}) async {
-    final phone = (forRegister ? registerPhoneController : phoneController).text.trim();
-    if (phone.isEmpty) {
-      showMessage("Enter WhatsApp mobile number");
+    final rawPhone = (forRegister ? registerPhoneController : phoneController).text.trim();
+    final digits = rawPhone.replaceAll(RegExp(r'\D'), '');
+    final last10 = digits.length >= 10 ? digits.substring(digits.length - 10) : digits;
+    if (last10.isEmpty) {
+      showMessage("Please enter your mobile number");
       return;
     }
+    if (last10.length != 10 || !RegExp(r'^[6-9]\d{9}$').hasMatch(last10)) {
+      showMessage("Please enter a valid 10-digit mobile number");
+      return;
+    }
+    final phone = last10;
 
     setState(() => loading = true);
 
@@ -525,11 +532,23 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
         TextFormField(
           controller: phone,
           keyboardType: TextInputType.phone,
-          decoration: input("WhatsApp number").copyWith(
-            prefixIcon: const Icon(Icons.phone_android_outlined),
+          maxLength: 10,
+          decoration: input("10-digit mobile number").copyWith(
+            prefixIcon: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              child: Text(
+                "+91",
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  color: Colors.black,
+                ),
+              ),
+            ),
             suffixIcon: verified
                 ? const Icon(Icons.verified, color: Colors.green)
                 : null,
+            counterText: "",
           ),
           onChanged: (_) {
             if (forRegister && registerPhoneVerified) {
@@ -539,7 +558,16 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
               });
             }
           },
-          validator: null,
+          validator: (v) {
+            final val = v?.trim() ?? "";
+            if (val.isEmpty) return "Please enter your mobile number";
+            final digits = val.replaceAll(RegExp(r'\D'), '');
+            final last10 = digits.length >= 10 ? digits.substring(digits.length - 10) : digits;
+            if (last10.length != 10 || !RegExp(r'^[6-9]\d{9}$').hasMatch(last10)) {
+              return "Please enter a valid 10-digit mobile number";
+            }
+            return null;
+          },
         ),
         if (otpWasSent && !verified) ...[
           const SizedBox(height: 12),

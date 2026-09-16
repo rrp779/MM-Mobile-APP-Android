@@ -350,15 +350,32 @@ class _ProductCardState extends State<ProductCard> {
                       final alreadyInCart =
                       cartProvider.containsVariant(variantId);
 
-                      await cartProvider.addToCart(
+                      final error = await cartProvider.addToCart(
                         variantId: variantId,
                         quantity: 1,
                       );
 
-                      showAnimatedCartToast(
-                        context,
-                        added: !alreadyInCart,
-                      );
+                      if (error != null) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                error,
+                                style: const TextStyle(fontWeight: FontWeight.w500),
+                              ),
+                              backgroundColor: const Color(0xFFE11D48),
+                              behavior: SnackBarBehavior.floating,
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      } else {
+                        showAnimatedCartToast(
+                          context,
+                          added: !alreadyInCart,
+                        );
+                      }
                     } else {
                       Navigator.push(
                         context,

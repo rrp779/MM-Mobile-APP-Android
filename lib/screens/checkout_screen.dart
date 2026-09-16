@@ -238,6 +238,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       return;
     }
 
+    final phoneRaw = (selectedAddress?["phone"] ?? "").toString().trim();
+    final digits = phoneRaw.replaceAll(RegExp(r'\D'), '');
+    final last10 = digits.length >= 10 ? digits.substring(digits.length - 10) : digits;
+    if (last10.isEmpty || last10.length != 10 || !RegExp(r'^[6-9]\d{9}$').hasMatch(last10)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please provide a valid 10-digit mobile number for delivery"),
+          backgroundColor: Color(0xFFE11D48),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     /// ✅ USE SAME CALCULATION
     final cartProvider = context.read<CartProvider>();
     double subtotalAfterDiscount = widget.totalAmount - cartProvider.couponDiscount;
@@ -304,7 +318,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         'image': razorpayLogoUrl,
         'timeout': 300,
         'prefill': {
-          'contact': selectedAddress?["phone"] ?? "",
+          'contact': last10,
           'email': customer?["email"] ?? "",
         },
       };

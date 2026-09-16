@@ -150,7 +150,10 @@ class _CustomerAddressEditState extends State<CustomerAddressEdit> {
 			case 'Country': return widget.address['country'];
 			case 'Province': return widget.address['province'];
 			case 'Postal/Zip code': return widget.address['zip'];
-			case 'Phone': return widget.address['phone'];
+			case 'Phone':
+				final raw = widget.address['phone']?.toString() ?? '';
+				final digits = raw.replaceAll(RegExp(r'\D'), '');
+				return digits.length >= 10 ? digits.substring(digits.length - 10) : digits;
 			default: return '';
 		}
 	}
@@ -240,14 +243,44 @@ class _CustomerAddressEditState extends State<CustomerAddressEdit> {
 				TextFormField(
 					autofocus: field == 'First name',
 					initialValue: getInitialValueEditAddress(field),
-					decoration: input(field),
+					decoration: field == 'Phone'
+						? input(field).copyWith(
+							hintText: "10-digit mobile number",
+							prefixIcon: const Padding(
+								padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+								child: Text(
+									"+91",
+									style: TextStyle(
+										fontWeight: FontWeight.w700,
+										fontSize: 14,
+										color: Colors.black,
+									),
+								),
+							),
+							counterText: "",
+						)
+						: input(field),
+					keyboardType: field == 'Phone'
+						? TextInputType.phone
+						: (field == 'Postal/Zip code' ? TextInputType.number : TextInputType.text),
+					maxLength: (field == 'Phone' || field == 'Postal/Zip code') ? (field == 'Phone' ? 10 : 6) : null,
 					style: const TextStyle(fontSize: 16),
 
 					validator: (value) {
+						if (field == 'Phone') {
+							final phone = value?.trim() ?? "";
+							if (phone.isEmpty) {
+								return 'Please enter your mobile number';
+							}
+							final digits = phone.replaceAll(RegExp(r'\D'), '');
+							final last10 = digits.length >= 10 ? digits.substring(digits.length - 10) : digits;
+							if (last10.length != 10 || !RegExp(r'^[6-9]\d{9}$').hasMatch(last10)) {
+								return 'Please enter a valid 10-digit mobile number';
+							}
+							return null;
+						}
 
-						if (field == 'Company' ||
-								field == 'Phone' ||
-								field == 'Address 2') {
+						if (field == 'Company' || field == 'Address 2') {
 							return null;
 						}
 
@@ -259,7 +292,13 @@ class _CustomerAddressEditState extends State<CustomerAddressEdit> {
 					},
 
 					onSaved: (value) {
-						_addressSavedFields[field] = value;
+						if (field == 'Phone') {
+							final digits = (value ?? "").trim().replaceAll(RegExp(r'\D'), '');
+							final last10 = digits.length >= 10 ? digits.substring(digits.length - 10) : digits;
+							_addressSavedFields[field] = "+91$last10";
+						} else {
+							_addressSavedFields[field] = value;
+						}
 					},
 				),
 
