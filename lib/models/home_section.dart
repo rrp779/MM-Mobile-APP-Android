@@ -101,6 +101,7 @@ class SectionItem {
   final String? collectionId;
   final String? collectionHandle;
   final String? productId;
+  final String? link;
 
   /// NEW IMAGE FALLBACKS
   final String? productImage;
@@ -121,6 +122,7 @@ class SectionItem {
     this.collectionId,
     this.collectionHandle,
     this.productId,
+    this.link,
 
     /// NEW
     this.productImage,
@@ -148,6 +150,8 @@ class SectionItem {
           .replaceAll(RegExp(r'[^a-z0-9\-]'), "");
     }
 
+    final rawLink = json['link']?.toString() ?? json['url']?.toString();
+
     return SectionItem(
       title: json['title'] ?? "",
 
@@ -155,6 +159,7 @@ class SectionItem {
       collectionId: json['collectionId']?.toString(),
       collectionHandle: handle,
       productId: json['productId']?.toString(),
+      link: (rawLink != null && rawLink.isNotEmpty) ? rawLink : null,
 
       productImage: json['productImage']?.toString(),
       collectionImage: json['collectionImage']?.toString(),

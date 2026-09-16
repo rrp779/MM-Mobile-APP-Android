@@ -10,6 +10,8 @@ import '../widgets/product_card_skeleton.dart';
 import 'product_detail_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/product.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -312,6 +314,139 @@ class _HomeScreenState extends State<HomeScreen>
     }).toList();
   }
 
+  /* ================= NAVIGATION HANDLER ================= */
+
+  void _handleItemClick(SectionItem item) {
+    // 1. Direct Product ID
+    final prodId = item.productId?.trim();
+    if (prodId != null && prodId.isNotEmpty) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ProductDetailScreen(
+            productId: prodId,
+          ),
+        ),
+      );
+      return;
+    }
+
+    // 2. Direct Collection (ID or Handle)
+    final id = item.collectionId?.trim();
+    final handle = item.collectionHandle?.trim();
+
+    if ((id != null && id.isNotEmpty) || (handle != null && handle.isNotEmpty)) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CollectionProductsScreen(
+            collectionId: (id != null && id.isNotEmpty) ? id : (handle ?? ""),
+            collectionHandle: handle,
+            collectionTitle: item.title.isNotEmpty ? item.title : "Collection",
+          ),
+        ),
+      );
+      return;
+    }
+
+    // 3. Custom Link / URL
+    final link = item.link?.trim();
+    if (link != null && link.isNotEmpty) {
+      if (link.startsWith("http://") || link.startsWith("https://")) {
+        final uri = Uri.tryParse(link);
+        if (uri != null) {
+          final pathSegments = uri.pathSegments;
+          final prodIndex = pathSegments.indexOf("products");
+          if (prodIndex != -1 && prodIndex + 1 < pathSegments.length) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ProductDetailScreen(
+                  productId: pathSegments[prodIndex + 1],
+                ),
+              ),
+            );
+            return;
+          }
+          final collIndex = pathSegments.indexOf("collections");
+          if (collIndex != -1 && collIndex + 1 < pathSegments.length) {
+            final collHandle = pathSegments[collIndex + 1];
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => CollectionProductsScreen(
+                  collectionId: collHandle,
+                  collectionHandle: collHandle,
+                  collectionTitle: item.title.isNotEmpty ? item.title : "Collection",
+                ),
+              ),
+            );
+            return;
+          }
+          launchUrl(uri, mode: LaunchMode.externalApplication);
+          return;
+        }
+      } else if (link.startsWith("/product/")) {
+        final pHandle = link.replaceFirst("/product/", "").trim();
+        if (pHandle.isNotEmpty) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ProductDetailScreen(productId: pHandle),
+            ),
+          );
+          return;
+        }
+      } else if (link.startsWith("/collection/")) {
+        final cHandle = link.replaceFirst("/collection/", "").trim();
+        if (cHandle.isNotEmpty) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CollectionProductsScreen(
+                collectionId: cHandle,
+                collectionHandle: cHandle,
+                collectionTitle: item.title.isNotEmpty ? item.title : "Collection",
+              ),
+            ),
+          );
+          return;
+        }
+      } else if (link == "/cart") {
+        Navigator.pushNamed(context, '/cart');
+        return;
+      } else if (link == "/category") {
+        Navigator.pushNamed(context, '/category');
+        return;
+      } else if (link == "/brand") {
+        Navigator.pushNamed(context, '/brand');
+        return;
+      }
+    }
+
+    // 4. Fallback by Title
+    if (item.title.trim().isNotEmpty) {
+      final safeHandle = item.title
+          .trim()
+          .toLowerCase()
+          .replaceAll("&", "")
+          .replaceAll(" ", "-")
+          .replaceAll(RegExp(r'[^a-z0-9\-]'), "");
+      if (safeHandle.isNotEmpty) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => CollectionProductsScreen(
+              collectionId: safeHandle,
+              collectionHandle: safeHandle,
+              collectionTitle: item.title,
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   /* ================= HERO ================= */
 
   Widget _buildHero(HomeSection section) {
@@ -322,13 +457,23 @@ class _HomeScreenState extends State<HomeScreen>
       child: PageView.builder(
         itemCount: items.length,
         itemBuilder: (_, i) {
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: _cachedImage(
-                items[i].image ?? "",
-                fit: BoxFit.cover,
+          final item = items[i];
+          final imageUrl = item.image ??
+              item.productImage ??
+              item.collectionImage ??
+              item.thumbnail ??
+              "";
+
+          return GestureDetector(
+            onTap: () => _handleItemClick(item),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: _cachedImage(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
           );
@@ -344,24 +489,7 @@ class _HomeScreenState extends State<HomeScreen>
         item.image ?? item.collectionImage ?? item.productImage ?? "";
 
     return GestureDetector(
-      onTap: () {
-        final handle = item.collectionHandle;
-        final id = item.collectionId;
-
-        if ((handle == null || handle.isEmpty) &&
-            (id == null || id.isEmpty)) return;
-
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => CollectionProductsScreen(
-              collectionId: id ?? "",
-              collectionHandle: handle,
-              collectionTitle: item.title,
-            ),
-          ),
-        );
-      },
+      onTap: () => _handleItemClick(item),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: SizedBox(
@@ -369,7 +497,7 @@ class _HomeScreenState extends State<HomeScreen>
           child: _cachedImage(
             imageUrl,
             width: width,
-            fit: BoxFit.cover, // 🔥 important change
+            fit: BoxFit.cover,
           ),
         ),
       ),
@@ -498,24 +626,7 @@ class _HomeScreenState extends State<HomeScreen>
                       "";
 
               return GestureDetector(
-                onTap: () {
-                  final handle = item.collectionHandle;
-                  final id = item.collectionId;
-
-                  if ((handle == null || handle.isEmpty) &&
-                      (id == null || id.isEmpty)) return;
-
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => CollectionProductsScreen(
-                        collectionId: handle ?? id!,
-                        collectionHandle: handle,
-                        collectionTitle: item.title,
-                      ),
-                    ),
-                  );
-                },
+                onTap: () => _handleItemClick(item),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: ClipRRect(
@@ -577,39 +688,7 @@ class _HomeScreenState extends State<HomeScreen>
                   child: SizedBox(
                     width: MediaQuery.of(context).size.width / 2.2,
                     child: GestureDetector(
-                      onTap: () {
-                        /// PRODUCT
-                        if (item.productId != null &&
-                            item.productId!.isNotEmpty) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ProductDetailScreen(
-                                productId: item.productId!,
-                              ),
-                            ),
-                          );
-                          return;
-                        }
-
-                        /// COLLECTION
-                        final handle = item.collectionHandle;
-                        final id = item.collectionId;
-
-                        if ((handle != null && handle.isNotEmpty) ||
-                            (id != null && id.isNotEmpty)) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => CollectionProductsScreen(
-                                collectionId: id ?? "",
-                                collectionHandle: handle,
-                                collectionTitle: item.title,
-                              ),
-                            ),
-                          );
-                        }
-                      },
+                      onTap: () => _handleItemClick(item),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(10),
                         child: _cachedImage(imageUrl, fit: BoxFit.cover,),
@@ -645,39 +724,7 @@ class _HomeScreenState extends State<HomeScreen>
                       "";
 
               return GestureDetector(
-                onTap: () {
-                  /// PRODUCT
-                  if (item.productId != null &&
-                      item.productId!.isNotEmpty) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ProductDetailScreen(
-                          productId: item.productId!,
-                        ),
-                      ),
-                    );
-                    return;
-                  }
-
-                  /// COLLECTION
-                  final handle = item.collectionHandle;
-                  final id = item.collectionId;
-
-                  if ((handle != null && handle.isNotEmpty) ||
-                      (id != null && id.isNotEmpty)) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => CollectionProductsScreen(
-                          collectionId: id ?? "",
-                          collectionHandle: handle,
-                          collectionTitle: item.title,
-                        ),
-                      ),
-                    );
-                  }
-                },
+                onTap: () => _handleItemClick(item),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
                   child: _cachedImage(imageUrl, fit: BoxFit.cover,),
@@ -714,40 +761,7 @@ class _HomeScreenState extends State<HomeScreen>
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
             child: GestureDetector(
-              onTap: () {
-
-                /// 🔥 PRODUCT CLICK
-                if (item.productId != null && item.productId!.isNotEmpty) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ProductDetailScreen(
-                        productId: item.productId!,
-                      ),
-                    ),
-                  );
-                  return;
-                }
-
-                /// 🔥 COLLECTION CLICK
-                final handle = item.collectionHandle;
-                final id = item.collectionId;
-
-                if ((handle != null && handle.isNotEmpty) ||
-                    (id != null && id.isNotEmpty)) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => CollectionProductsScreen(
-                        collectionId: id ?? "",
-                        collectionHandle: handle,
-                        collectionTitle: item.title,
-                      ),
-                    ),
-                  );
-                }
-              },
-
+              onTap: () => _handleItemClick(item),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: _cachedImage(
@@ -767,21 +781,36 @@ class _HomeScreenState extends State<HomeScreen>
   /* ================= BANNER ================= */
 
   Widget _buildBanner(HomeSection section) {
-    if (section.items.isEmpty) {
+    final items = section.items.where((i) => i.visible).toList();
+    if (items.isEmpty) {
       return const SizedBox.shrink();
     }
-    final item = section.items.first;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), // ✅ padding
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12), // ✅ border radius
-        child: _cachedImage(
-          item.image ?? "",
-          height: 220,
-          width: double.infinity,
-          fit: BoxFit.fill,
-        ),
-      ),
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: items.map((item) {
+        final imageUrl = item.image ??
+            item.productImage ??
+            item.collectionImage ??
+            item.thumbnail ??
+            "";
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: GestureDetector(
+            onTap: () => _handleItemClick(item),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: _cachedImage(
+                imageUrl,
+                height: 220,
+                width: double.infinity,
+                fit: BoxFit.fill,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
   /* ================= PRODUCTS ================= */
