@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/app_icon.dart';
 import '../customer/customer_model.dart';
+import 'forgot_password_screen.dart';
 
 class CustomerLoginRegisterBottom extends StatefulWidget {
   const CustomerLoginRegisterBottom({super.key});
@@ -245,34 +246,17 @@ class _CustomerLoginRegisterBottomState
     login();
   }
 
-  Future<void> forgotPassword() async {
-    final client = GraphQLProvider.of(context).value;
-
-    final result = await client.mutate(
-      MutationOptions(
-        document: gql(r'''
-        mutation customerRecover($email:String!){
-          customerRecover(email:$email){
-            customerUserErrors{message}
-          }
-        }
-        '''),
-        variables: {"email": emailController.text},
+  void forgotPassword() {
+    final email = emailController.text.trim();
+    Navigator.pop(context); // Close bottom sheet
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ForgotPasswordScreen(
+          initialPhoneOrEmail: email,
+        ),
       ),
     );
-
-    if (result.hasException) {
-      showMessage(result.exception.toString());
-      return;
-    }
-
-    final errors = result.data!['customerRecover']['customerUserErrors'];
-
-    if (errors.isNotEmpty) {
-      showMessage(errors[0]['message']);
-    } else {
-      showMessage("Password reset email sent", isError: false);
-    }
   }
 
   InputDecoration input(String hint) {

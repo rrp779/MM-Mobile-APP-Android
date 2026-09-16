@@ -9,6 +9,7 @@ import '../widgets/app_icon.dart';
 import '../customer/customer_model.dart';
 import '../screens/profile_screen.dart';
 import '../config/backend_config.dart';
+import 'forgot_password_screen.dart';
 
 class CustomerLoginRegister extends StatefulWidget {
   const CustomerLoginRegister({super.key});
@@ -387,45 +388,17 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
   }
 
   /// FORGOT PASSWORD
-  Future<void> forgotPassword() async {
-    final email = emailController.text.trim();
-    if (email.isEmpty) {
-      showMessage("Please enter your email address first, then tap Forgot Password.");
-      return;
-    }
-
-    final client = GraphQLProvider.of(context).value;
-
-    final result = await client.mutate(
-      MutationOptions(
-        document: gql(r'''
-        mutation customerRecover($email:String!){
-          customerRecover(email:$email){
-            customerUserErrors{message}
-          }
-        }
-        '''),
-        variables: {"email": email},
+  void forgotPassword() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ForgotPasswordScreen(
+          initialPhoneOrEmail: phoneController.text.trim().isNotEmpty
+              ? phoneController.text.trim()
+              : emailController.text.trim(),
+        ),
       ),
     );
-
-    if (result.hasException) {
-      showMessage(
-        "We could not send the password reset email right now. Please check your internet connection and try again.",
-      );
-      return;
-    }
-
-    final errors = result.data!['customerRecover']['customerUserErrors'];
-
-    if (errors.isNotEmpty) {
-      showMessage(errors[0]['message']);
-    } else {
-      showMessage(
-        "Password reset email sent. Please check your inbox and open the reset link.",
-        isError: false,
-      );
-    }
   }
 
   InputDecoration input(String hint) {

@@ -19,6 +19,7 @@ import 'screens/brands_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/product_detail_screen.dart';
 import 'screens/collection_products_screen.dart';
+import 'screens/forgot_password_screen.dart';
 import 'customer/customer_orders.dart';
 import 'services/notification_service.dart';
 
@@ -286,6 +287,7 @@ class _MyAppState extends State<MyApp> {
         '/brand': (context) => const BrandsScreen(),
         '/cart': (context) => const CartPage(),
         '/login': (context) => const CustomerLoginRegister(),
+        '/forgot-password': (context) => const ForgotPasswordScreen(),
         '/notifications': (context) => const NotificationScreen(),
         '/orders': (context) => const CustomerOrders(),
         '/product': (context) {
