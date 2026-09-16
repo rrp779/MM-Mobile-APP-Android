@@ -158,6 +158,34 @@ void handleNotificationNavigation(RemoteMessage message) {
   navigatorKey.currentState?.pushNamed('/notifications');
 }
 
+void saveNotificationToProvider(RemoteMessage message) {
+  final context = navigatorKey.currentContext;
+  if (context == null) return;
+
+  final notifTitle = message.notification?.title ?? message.data['title'] ?? "Order Update";
+  final notifBody = message.notification?.body ?? message.data['body'] ?? "New notification received";
+  final notifImage = message.notification?.android?.imageUrl ??
+      message.data['imageUrl'] ??
+      message.data['image_url'];
+
+  try {
+    final provider = Provider.of<NotificationProvider>(context, listen: false);
+    provider.addNotification(
+      AppNotification(
+        title: notifTitle,
+        body: notifBody,
+        time: DateTime.now(),
+        type: message.data['type'] ?? message.data['status'],
+        handle: message.data['handle'] ?? message.data['order_id'],
+        titleArg: message.data['title'] ?? message.data['order_number'],
+        imageUrl: notifImage,
+      ),
+    );
+  } catch (e) {
+    debugPrint("[main] Error saving notification: $e");
+  }
+}
+
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -189,24 +217,13 @@ class _MyAppState extends State<MyApp> {
     await NotificationService().initialize();
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      saveNotificationToProvider(message);
+
       final context = navigatorKey.currentContext;
       final notifTitle = message.notification?.title ?? message.data['title'] ?? "Order Update";
       final notifBody = message.notification?.body ?? message.data['body'] ?? "New notification received";
 
       if (context != null) {
-        final provider =
-            Provider.of<NotificationProvider>(context, listen: false);
-        provider.addNotification(
-          AppNotification(
-            title: notifTitle,
-            body: notifBody,
-            time: DateTime.now(),
-            type: message.data['type'],
-            handle: message.data['handle'] ?? message.data['order_id'],
-            titleArg: message.data['title'] ?? message.data['order_number'],
-          ),
-        );
-
         // Show in-app banner for instant visual feedback when app is in foreground
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -248,7 +265,9 @@ class _MyAppState extends State<MyApp> {
         );
       }
     });
+
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      saveNotificationToProvider(message);
       handleNotificationNavigation(message);
     });
   }

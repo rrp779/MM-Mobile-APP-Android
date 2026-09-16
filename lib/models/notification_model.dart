@@ -22,6 +22,9 @@ class AppNotification extends HiveObject {
   @HiveField(5)
   final String? titleArg;
 
+  @HiveField(6)
+  final String? imageUrl;
+
   AppNotification({
     required this.title,
     required this.body,
@@ -29,5 +32,6 @@ class AppNotification extends HiveObject {
     this.type,
     this.handle,
     this.titleArg,
+    this.imageUrl,
   });
 }

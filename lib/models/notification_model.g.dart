@@ -23,13 +23,14 @@ class AppNotificationAdapter extends TypeAdapter<AppNotification> {
       type: fields[3] as String?,
       handle: fields[4] as String?,
       titleArg: fields[5] as String?,
+      imageUrl: fields[6] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, AppNotification obj) {
     writer
-      ..writeByte(6)
+      ..writeByte(7)
       ..writeByte(0)
       ..write(obj.title)
       ..writeByte(1)
@@ -41,7 +42,9 @@ class AppNotificationAdapter extends TypeAdapter<AppNotification> {
       ..writeByte(4)
       ..write(obj.handle)
       ..writeByte(5)
-      ..write(obj.titleArg);
+      ..write(obj.titleArg)
+      ..writeByte(6)
+      ..write(obj.imageUrl);
   }
 
   @override

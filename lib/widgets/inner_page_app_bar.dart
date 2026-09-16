@@ -4,6 +4,7 @@ import '../widgets/app_icon.dart';
 import '../providers/wishlist_provider.dart';
 import '../screens/wishlist_screen.dart';
 import '../providers/cart_provider.dart';
+import '../providers/notification_provider.dart';
 import '../screens/cart_page.dart';
 
 class InnerPageAppBar extends StatelessWidget
@@ -81,15 +82,51 @@ class InnerPageAppBar extends StatelessWidget
                     children: [
 
                       /// 🔔 Notification
-                      IconButton(
-                        onPressed: () {},
-                        icon: AppIcon(
-                          isActive: false,
-                          outlinePath:
-                          'assets/icons/NotificationOutline.svg',
-                          filledPath:
-                          'assets/icons/NotificationBold.svg',
-                        ),
+                      Stack(
+                        children: [
+                          IconButton(
+                            onPressed: () {
+                              Navigator.pushNamed(context, '/notifications');
+                            },
+                            icon: AppIcon(
+                              isActive: false,
+                              outlinePath:
+                                  'assets/icons/NotificationOutline.svg',
+                              filledPath:
+                                  'assets/icons/NotificationBold.svg',
+                            ),
+                          ),
+                          Positioned(
+                            right: 6,
+                            top: 6,
+                            child: Consumer<NotificationProvider>(
+                              builder: (context, provider, child) {
+                                int count = provider.unreadCount;
+                                if (count == 0) return const SizedBox();
+                                return Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 18,
+                                    minHeight: 18,
+                                  ),
+                                  child: Text(
+                                    count > 99 ? '99+' : '$count',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
                       ),
 
                       /// ❤️ Wishlist

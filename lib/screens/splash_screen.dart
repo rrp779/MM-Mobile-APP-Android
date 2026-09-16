@@ -51,6 +51,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
     // If launched from a notification, push target screen on top of HomeScreen
     if (initialMessage != null) {
+      saveNotificationToProvider(initialMessage!);
       Future.delayed(const Duration(milliseconds: 300), () {
         handleNotificationNavigation(initialMessage!);
       });

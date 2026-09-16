@@ -24,14 +24,24 @@ class _NotificationScreenState extends State<NotificationScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Provider.of<NotificationProvider>(context, listen: false).markAllAsRead();
+      }
+    });
     _loadDismissedKeysAndFetch();
   }
 
   Future<void> _loadDismissedKeysAndFetch() async {
     final prefs = await SharedPreferences.getInstance();
     final savedKeys = prefs.getStringList('dismissed_notification_keys') ?? [];
+    // Only keep valid 24-character hexadecimal MongoDB ObjectIds
+    final validIds = savedKeys.where((k) => !k.contains('__') && RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(k)).toSet();
+    if (validIds.length != savedKeys.length) {
+      await prefs.setStringList('dismissed_notification_keys', validIds.toList());
+    }
     setState(() {
-      _dismissedKeys = savedKeys.toSet();
+      _dismissedKeys = validIds;
     });
     await _fetchRemoteNotifications();
   }
@@ -71,7 +81,16 @@ class _NotificationScreenState extends State<NotificationScreen> {
           ? Uri.parse("${BackendConfig.baseUrl}/notifications/history").replace(queryParameters: queryParams)
           : Uri.parse("${BackendConfig.baseUrl}/notifications/history");
 
-      final response = await http.get(uri);
+      http.Response response;
+      try {
+        response = await http.get(uri).timeout(const Duration(seconds: 8));
+      } catch (e) {
+        debugPrint("[NotificationScreen] Primary history fetch failed ($e), trying fallback...");
+        final fallbackUri = queryParams.isNotEmpty
+            ? Uri.parse("${BackendConfig.fallbackBaseUrl}/notifications/history").replace(queryParameters: queryParams)
+            : Uri.parse("${BackendConfig.fallbackBaseUrl}/notifications/history");
+        response = await http.get(fallbackUri).timeout(const Duration(seconds: 8));
+      }
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -82,10 +101,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
           for (final n in data['notifications']) {
             if (n is Map<String, dynamic>) {
               final id = n['_id']?.toString() ?? "";
-              final key = _buildNotificationKey(n['title'], n['body']);
-              final legacyKey = "${n['title']}_${n['orderId'] ?? ''}_${n['status'] ?? ''}";
 
-              if (_dismissedKeys.contains(id) || _dismissedKeys.contains(key) || _dismissedKeys.contains(legacyKey)) {
+              // Only filter if this specific remote ID was dismissed
+              if (id.isNotEmpty && _dismissedKeys.contains(id)) {
                 continue;
               }
 
@@ -121,29 +139,25 @@ class _NotificationScreenState extends State<NotificationScreen> {
     final title = item['title']?.toString();
     final body = item['body']?.toString();
     final key = _buildNotificationKey(title, body);
-    final legacyKey = "${title}_${item['handle'] ?? ''}_${item['status'] ?? ''}";
 
     setState(() {
-      _dismissedKeys.add(key);
-      _dismissedKeys.add(legacyKey);
       if (id.isNotEmpty) _dismissedKeys.add(id);
       _remoteNotifications.removeWhere((r) =>
-          (r["_id"] != null && r["_id"].toString() == id) ||
-          (_buildNotificationKey(r['title'], r['body']) == key));
+          (r["_id"] != null && r["_id"].toString() == id));
     });
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('dismissed_notification_keys', _dismissedKeys.toList());
+    if (id.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('dismissed_notification_keys', _dismissedKeys.toList());
+      http.delete(Uri.parse("${BackendConfig.baseUrl}/notifications/$id"))
+          .catchError((_) => http.delete(Uri.parse("${BackendConfig.fallbackBaseUrl}/notifications/$id")))
+          .catchError((_) => http.Response('', 500));
+    }
 
     final localProvider = Provider.of<NotificationProvider>(context, listen: false);
     localProvider.removeNotificationWhere((l) =>
         _buildNotificationKey(l.title, l.body) == key ||
         (title != null && l.title == title && body != null && l.body == body));
-
-    if (id.isNotEmpty) {
-      http.delete(Uri.parse("${BackendConfig.baseUrl}/notifications/$id"))
-          .catchError((_) => http.Response('', 500));
-    }
 
     if (mounted) {
       ScaffoldMessenger.of(context).removeCurrentSnackBar();
@@ -385,11 +399,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
     // 1. Add remote notifications from backend
     for (final r in _remoteNotifications) {
       final id = r['_id']?.toString() ?? "";
+      if (id.isNotEmpty && _dismissedKeys.contains(id)) continue;
+
       final key = _buildNotificationKey(r['title'], r['body']);
-      final legacyKey = "${r['title']}_${r['orderId'] ?? ''}_${r['status'] ?? ''}";
-
-      if (_dismissedKeys.contains(id) || _dismissedKeys.contains(key) || _dismissedKeys.contains(legacyKey)) continue;
-
       if (!seenKeys.contains(key)) {
         seenKeys.add(key);
         DateTime dt = DateTime.now();
@@ -431,7 +443,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
           "time": dt,
           "type": notifType,
           "status": r["status"],
-          "imageUrl": r["imageUrl"] ?? data?["imageUrl"],
+          "imageUrl": r["imageUrl"] ?? data?["imageUrl"] ?? data?["image_url"],
           "handle": notifHandle,
           "titleArg": notifTitleArg,
           "isBroadcast": isBroadcast,
@@ -443,7 +455,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
     // 2. Add local notifications from Hive (skip if already loaded from backend)
     for (final l in localNotifications) {
       final key = _buildNotificationKey(l.title, l.body);
-      if (_dismissedKeys.contains(key)) continue;
 
       if (!seenKeys.contains(key)) {
         seenKeys.add(key);
@@ -470,6 +481,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
           "status": localStatus,
           "handle": l.handle,
           "titleArg": l.titleArg ?? _extractOrderNumber(l.title),
+          "imageUrl": l.imageUrl,
+          "isBroadcast": isFlashSale || isPromo,
         });
       }
     }

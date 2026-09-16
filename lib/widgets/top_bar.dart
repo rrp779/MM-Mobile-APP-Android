@@ -48,7 +48,7 @@ class HomeTopBar extends StatelessWidget {
                         top: 6,
                         child: Consumer<NotificationProvider>(
                           builder: (context, provider, child) {
-                            int count = provider.notifications.length;
+                            int count = provider.unreadCount;
 
                             if (count == 0) return const SizedBox();
 
