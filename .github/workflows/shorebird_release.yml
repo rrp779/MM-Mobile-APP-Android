@@ -1,0 +1,51 @@
+name: Shorebird Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build release for'
+        required: true
+        default: 'android'
+        type: choice
+        options:
+          - android
+          - ios
+          - all
+
+jobs:
+  release-android:
+    if: inputs.platform == 'android' || inputs.platform == 'all'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - uses: shorebirdtech/actions/setup-shorebird@v1
+        with:
+          shorebird-token: ${{ secrets.SHOREBIRD_TOKEN }}
+      - run: shorebird run flutter pub get
+      - run: shorebird release android --force
+      - name: Upload Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: shorebird-android-release
+          path: build/app/outputs/bundle/release/app-release.aab
+
+  release-ios:
+    if: inputs.platform == 'ios' || inputs.platform == 'all'
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shorebirdtech/actions/setup-shorebird@v1
+        with:
+          shorebird-token: ${{ secrets.SHOREBIRD_TOKEN }}
+      - run: shorebird run flutter pub get
+      - run: shorebird release ios --force --no-codesign
+      - name: Upload Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: shorebird-ios-release
+          path: build/ios/ipa/*.ipa

@@ -1,5 +1,5 @@
-﻿# This file is used to configure the Shorebird updater.
+# This file is used to configure the Shorebird updater.
 # Learn more at https://docs.shorebird.dev
 # To obtain your unique app_id, login at https://console.shorebird.dev and create an app,
 # or run shorebird init in your terminal.
-app_id: YOUR_SHOREBIRD_APP_ID
+app_id: ad4c27e8-c2db-4d57-9d98-384b56711540
