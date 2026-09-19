@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/backend_config.dart';
+import 'api_client.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -130,7 +130,7 @@ class NotificationService {
         "appVersion": "1.0.15",
       };
 
-      final response = await http.post(
+      final response = await ApiClient.post(
         url,
         headers: {"Content-Type": "application/json"},
         body: jsonEncode(body),
@@ -152,7 +152,7 @@ class NotificationService {
 
     try {
       final url = Uri.parse("${BackendConfig.baseUrl}/notifications/unregister-token");
-      await http.post(
+      await ApiClient.post(
         url,
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({"fcmToken": _currentToken}),

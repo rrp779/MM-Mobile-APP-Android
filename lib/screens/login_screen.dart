@@ -2,13 +2,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
-import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/app_icon.dart';
 import '../customer/customer_model.dart';
 import '../screens/profile_screen.dart';
 import '../config/backend_config.dart';
+import '../services/api_client.dart';
 import 'forgot_password_screen.dart';
 
 class CustomerLoginRegister extends StatefulWidget {
@@ -214,7 +214,7 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
     setState(() => loading = true);
 
     try {
-      final response = await http.post(
+      final response = await ApiClient.post(
         Uri.parse("${BackendConfig.baseUrl}/auth/whatsapp/send-otp"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({"phone": phone}),
@@ -241,11 +241,8 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
         }
       });
 
-      final devOtp = data["devOtp"];
       showMessage(
-        devOtp == null
-            ? "OTP sent on WhatsApp"
-            : "OTP sent on WhatsApp. Dev OTP: $devOtp",
+        data["message"]?.toString() ?? "OTP sent on WhatsApp",
         isError: false,
       );
     } on FormatException {
@@ -270,7 +267,7 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
     setState(() => loading = true);
 
     try {
-      final response = await http.post(
+      final response = await ApiClient.post(
         Uri.parse("${BackendConfig.baseUrl}/auth/whatsapp/verify-otp"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({

@@ -22,6 +22,16 @@ class _AccountPageState extends State<AccountPage> {
 
   int selectedIndex = 4;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<CustomerModel>().getCustomer(context);
+      }
+    });
+  }
+
   void _handleNavigation(int index) {
     switch (index) {
       case 0:

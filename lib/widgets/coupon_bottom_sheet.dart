@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:dotted_border/dotted_border.dart';
 import '../config/backend_config.dart';
+import '../services/api_client.dart';
 
 class CouponBottomSheet extends StatefulWidget {
   final double cartAmount;
@@ -27,7 +27,7 @@ class _CouponBottomSheetState extends State<CouponBottomSheet> {
 
 
   Future<void> fetchCoupons() async {
-    final response = await http.get(
+    final response = await ApiClient.get(
       Uri.parse("${BackendConfig.baseUrl}/shopify/coupons"),
     );
 

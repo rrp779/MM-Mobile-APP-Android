@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../widgets/app_icon.dart';
 import '../screens/brands_screen.dart';
@@ -21,7 +22,7 @@ class MainBottomBar extends StatelessWidget {
     this.cartItemCount = 0,
   }) : super(key: key);
 
-  void _handleTap(BuildContext context, int index) {
+  Future<void> _handleTap(BuildContext context, int index) async {
     final customer = context.read<CustomerModel>();
     switch (index) {
       case 0:
@@ -43,7 +44,19 @@ class MainBottomBar extends StatelessWidget {
         break;
 
       case 4:
-        if (customer.isLoggedIn) {
+        bool loggedIn = customer.isLoggedIn;
+        if (!loggedIn) {
+          final prefs = await SharedPreferences.getInstance();
+          final raw = prefs.getString('customer');
+          if (raw != null && raw.isNotEmpty) {
+            loggedIn = true;
+            await customer.loadCustomerFromStorage();
+          }
+        }
+
+        if (!context.mounted) return;
+
+        if (loggedIn) {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const AccountPage()),

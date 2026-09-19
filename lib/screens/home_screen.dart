@@ -11,6 +11,7 @@ import 'product_detail_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/product.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../customer/customer_model.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -42,6 +43,10 @@ class _HomeScreenState extends State<HomeScreen>
         /// 🔥 preload products (BIG speed boost)
         // FIXED: Removed redundant product fetch, fetchSections handles it
         await provider.fetchSections();
+      }
+
+      if (mounted) {
+        context.read<CustomerModel>().loadCustomerFromStorage();
       }
     });
   }

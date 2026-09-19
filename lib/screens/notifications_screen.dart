@@ -8,6 +8,7 @@ import '../config/backend_config.dart';
 import '../customer/customer_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
+import '../services/api_client.dart';
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
@@ -81,16 +82,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
           ? Uri.parse("${BackendConfig.baseUrl}/notifications/history").replace(queryParameters: queryParams)
           : Uri.parse("${BackendConfig.baseUrl}/notifications/history");
 
-      http.Response response;
-      try {
-        response = await http.get(uri).timeout(const Duration(seconds: 8));
-      } catch (e) {
-        debugPrint("[NotificationScreen] Primary history fetch failed ($e), trying fallback...");
-        final fallbackUri = queryParams.isNotEmpty
-            ? Uri.parse("${BackendConfig.fallbackBaseUrl}/notifications/history").replace(queryParameters: queryParams)
-            : Uri.parse("${BackendConfig.fallbackBaseUrl}/notifications/history");
-        response = await http.get(fallbackUri).timeout(const Duration(seconds: 8));
-      }
+      final response = await ApiClient.get(uri).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -149,8 +141,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
     if (id.isNotEmpty) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setStringList('dismissed_notification_keys', _dismissedKeys.toList());
-      http.delete(Uri.parse("${BackendConfig.baseUrl}/notifications/$id"))
-          .catchError((_) => http.delete(Uri.parse("${BackendConfig.fallbackBaseUrl}/notifications/$id")))
+      ApiClient.delete(Uri.parse("${BackendConfig.baseUrl}/notifications/$id"))
           .catchError((_) => http.Response('', 500));
     }
 
@@ -222,7 +213,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
     if (queryParams.isNotEmpty) {
       final uri = Uri.parse("${BackendConfig.baseUrl}/notifications/clear/all")
           .replace(queryParameters: queryParams);
-      http.delete(uri).catchError((_) => http.Response('', 500));
+      ApiClient.delete(uri).catchError((_) => http.Response('', 500));
     }
 
     if (mounted) {

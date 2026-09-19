@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
@@ -6,7 +7,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'firebase_options.dart';
-
 import 'config/shopify_client.dart';
 
 // Screens
@@ -22,6 +22,7 @@ import 'screens/collection_products_screen.dart';
 import 'screens/forgot_password_screen.dart';
 import 'customer/customer_orders.dart';
 import 'services/notification_service.dart';
+import 'services/ota_service.dart';
 
 // Providers
 import 'providers/auth_provider.dart';
@@ -35,6 +36,14 @@ import 'providers/notification_provider.dart';
 // Models
 import 'models/notification_model.dart';
 import 'customer/customer_model.dart';
+
+class AppHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+  }
+}
 
 /// ✅ GLOBAL NAVIGATOR KEY
 final GlobalKey<NavigatorState> navigatorKey =
@@ -51,6 +60,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 Future<void> main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
+  HttpOverrides.global = AppHttpOverrides();
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
@@ -68,6 +78,9 @@ Future<void> main() async {
   ]);
 
   final authProvider = AuthProvider();
+
+  // 🚀 Shorebird Over-The-Air (OTA) background update checker
+  OtaService().checkForUpdates();
 
   runApp(
     GraphQLProvider(

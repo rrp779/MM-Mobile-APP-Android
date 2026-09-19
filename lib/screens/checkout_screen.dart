@@ -13,6 +13,7 @@ import '../screens/login_screen.dart';
 import '../config/backend_config.dart';
 import '../providers/cart_provider.dart';
 import '../services/notification_service.dart';
+import '../services/api_client.dart';
 
 class CheckoutScreen extends StatefulWidget {
 
@@ -276,7 +277,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final customer = context.read<CustomerModel>().customer;
 
     try {
-      final response = await http.post(
+      final response = await ApiClient.post(
         Uri.parse("${BackendConfig.baseUrl}/payment/create-order"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
@@ -396,7 +397,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       final customer = context.read<CustomerModel>().customer;
       String email = customer?["email"] ?? "";
 
-      final verify = await http.post(
+      final verify = await ApiClient.post(
         Uri.parse("${BackendConfig.baseUrl}/payment/verify"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
@@ -1169,7 +1170,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     if (_currentRazorpayOrderId != null && _currentRazorpayOrderId!.isNotEmpty) {
       final customer = context.read<CustomerModel>().customer;
-      http.post(
+      ApiClient.post(
         Uri.parse("${BackendConfig.baseUrl}/payment/failed"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({

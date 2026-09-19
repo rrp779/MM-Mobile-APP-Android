@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/backend_config.dart';
 import '../customer/customer_model.dart';
+import '../services/api_client.dart';
 import '../widgets/app_icon.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -157,39 +157,44 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     setState(() => _loading = true);
 
     try {
-      final response = await http.post(
+      final response = await ApiClient.post(
         Uri.parse("${BackendConfig.baseUrl}/auth/forgot-password/send-otp"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({"phone": phone}),
-      );
+      ).timeout(const Duration(seconds: 15));
 
-      final data = jsonDecode(response.body);
+      Map<String, dynamic> data = {};
+      try {
+        if (response.body.isNotEmpty) {
+          data = jsonDecode(response.body) as Map<String, dynamic>;
+        }
+      } catch (_) {}
 
       if (response.statusCode >= 400 || data["success"] != true) {
-        _showMessage(data["message"] ?? "Unable to send verification OTP");
+        final msg = data["message"]?.toString() ?? "Unable to send verification OTP (Status ${response.statusCode})";
+        _showMessage(msg);
         return;
       }
 
       setState(() {
         _verifiedPhone = data["phone"]?.toString() ?? phone;
         _maskedPhone = data["maskedPhone"]?.toString() ?? phone;
+        _otpController.clear();
         _currentStep = 2; // Move to OTP step
       });
 
       _startResendTimer();
 
-      final devOtp = data["devOtp"];
-      if (devOtp != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Dev OTP: $devOtp"),
-            backgroundColor: Colors.black87,
-            duration: const Duration(seconds: 8),
-          ),
-        );
-      }
+      final infoMsg = data["message"]?.toString() ?? "OTP sent to your WhatsApp number";
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(infoMsg),
+          backgroundColor: const Color(0xFF16A34A),
+          duration: const Duration(seconds: 4),
+        ),
+      );
     } catch (e) {
-      _showMessage("Could not send verification OTP. Please check your connection and try again.");
+      _showMessage("Could not send verification OTP. ${e.toString().replaceAll('Exception: ', '')}");
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -205,16 +210,22 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     setState(() => _loading = true);
 
     try {
-      final response = await http.post(
+      final response = await ApiClient.post(
         Uri.parse("${BackendConfig.baseUrl}/auth/forgot-password/verify-otp"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({"phone": phone, "otp": otp}),
-      );
+      ).timeout(const Duration(seconds: 15));
 
-      final data = jsonDecode(response.body);
+      Map<String, dynamic> data = {};
+      try {
+        if (response.body.isNotEmpty) {
+          data = jsonDecode(response.body) as Map<String, dynamic>;
+        }
+      } catch (_) {}
 
       if (response.statusCode >= 400 || data["success"] != true) {
-        _showMessage(data["message"] ?? "Invalid verification code");
+        final msg = data["message"]?.toString() ?? "Invalid verification code (Status ${response.statusCode})";
+        _showMessage(msg);
         return;
       }
 
@@ -225,7 +236,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
       _resendTimer?.cancel();
     } catch (e) {
-      _showMessage("Could not verify OTP. Please try again.");
+      _showMessage("Could not verify OTP. ${e.toString().replaceAll('Exception: ', '')}");
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -248,19 +259,25 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     setState(() => _loading = true);
 
     try {
-      final response = await http.post(
+      final response = await ApiClient.post(
         Uri.parse("${BackendConfig.baseUrl}/auth/forgot-password/reset-password"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "resetToken": resetToken,
           "newPassword": newPassword,
         }),
-      );
+      ).timeout(const Duration(seconds: 20));
 
-      final data = jsonDecode(response.body);
+      Map<String, dynamic> data = {};
+      try {
+        if (response.body.isNotEmpty) {
+          data = jsonDecode(response.body) as Map<String, dynamic>;
+        }
+      } catch (_) {}
 
       if (response.statusCode >= 400 || data["success"] != true) {
-        _showMessage(data["message"] ?? "Could not reset password. Please try again.");
+        final msg = data["message"]?.toString() ?? "Could not reset password. Please try again.";
+        _showMessage(msg);
         return;
       }
 
@@ -286,7 +303,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       // Redirect to homepage
       Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
     } catch (e) {
-      _showMessage("Could not update password. Please check your internet connection.");
+      _showMessage("Could not update password. ${e.toString().replaceAll('Exception: ', '')}");
     } finally {
       if (mounted) setState(() => _loading = false);
     }

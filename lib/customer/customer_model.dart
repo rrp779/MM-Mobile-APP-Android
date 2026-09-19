@@ -21,10 +21,55 @@ class CustomerModel with ChangeNotifier {
 	/// ✅ Login state
 	bool get isLoggedIn => _customer != null;
 
+	CustomerModel() {
+		loadCustomerFromStorage();
+	}
+
+	Future<void> loadCustomerFromStorage() async {
+		try {
+			final prefs = await SharedPreferences.getInstance();
+			final customerEncoded = prefs.getString('customer');
+			if (customerEncoded != null && customerEncoded.isNotEmpty) {
+				final decoded = jsonDecode(customerEncoded);
+				if (decoded is Map) {
+					final expStr = decoded['expiresAt']?.toString();
+					if (expStr != null) {
+						final exp = DateTime.tryParse(expStr);
+						if (exp != null && exp.isBefore(DateTime.now())) {
+							await prefs.remove('customer');
+							await prefs.remove('customer_profile_cache');
+							_customer = null;
+							notifyListeners();
+							return;
+						}
+					}
+					_customer = decoded;
+
+					final cachedProfile = prefs.getString('customer_profile_cache');
+					if (cachedProfile != null && cachedProfile.isNotEmpty) {
+						try {
+							final p = jsonDecode(cachedProfile);
+							if (p is Map) {
+								_customer = {...decoded, ...p};
+								loyaltyPoints = int.tryParse(p['points']?['value'] ?? "0") ?? 0;
+								vipTier = p['vipTier']?['value'] ?? "";
+								redeemedRewards = int.tryParse(p['redeemed']?['value'] ?? "0") ?? 0;
+							}
+						} catch (_) {}
+					}
+					notifyListeners();
+				}
+			}
+		} catch (e) {
+			debugPrint("[CustomerModel] Error loading customer from storage: $e");
+		}
+	}
+
 	Future<void> logout(BuildContext context) async {
 		final prefs = await SharedPreferences.getInstance();
 
 		await prefs.remove('customer');
+		await prefs.remove('customer_profile_cache');
 
 		NotificationService().unregisterOnLogout();
 
@@ -212,6 +257,7 @@ class CustomerModel with ChangeNotifier {
 		_customer = data;
 
 		if (data != null) {
+			await prefs.setString('customer_profile_cache', jsonEncode(data));
 			NotificationService().syncTokenWithBackend(
 				customerId: data['id']?.toString(),
 				email: data['email']?.toString(),

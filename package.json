@@ -1,0 +1,12 @@
+{
+  "name": "makeup-mystery-mobile",
+  "version": "1.0.28",
+  "private": true,
+  "scripts": {
+    "ota:android": "shorebird patch android",
+    "ota:ios": "shorebird patch ios",
+    "ota:prod": "shorebird patch android && shorebird patch ios",
+    "release:android": "shorebird release android",
+    "release:ios": "shorebird release ios"
+  }
+}

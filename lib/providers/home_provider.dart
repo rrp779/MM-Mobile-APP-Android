@@ -1,10 +1,10 @@
 import 'dart:async'; // FIXED: Add async import for TimeoutException
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 
 import '../models/home_section.dart';
 import '../config/backend_config.dart';
+import '../services/api_client.dart';
 import '../models/product.dart';
 import '../data/default_home_sections.dart';
 
@@ -56,7 +56,7 @@ class HomeProvider extends ChangeNotifier {
     final url = "${BackendConfig.baseUrl}/products/$encodedId";
 
     try {
-      final response = await http.get(Uri.parse(url));
+      final response = await ApiClient.get(Uri.parse(url));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -105,7 +105,7 @@ class HomeProvider extends ChangeNotifier {
         final url = "${BackendConfig.baseUrl}/products/$encodedId";
 
         try {
-          final response = await http
+          final response = await ApiClient
               .get(Uri.parse(url))
               .timeout(const Duration(seconds: 15));
 
@@ -190,7 +190,7 @@ class HomeProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await http.get(
+      final response = await ApiClient.get(
         Uri.parse("${BackendConfig.baseUrl}/sections"),
       ).timeout(const Duration(seconds: 15));
 
