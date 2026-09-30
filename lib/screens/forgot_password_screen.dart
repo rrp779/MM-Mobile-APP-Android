@@ -41,7 +41,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   String? _resetToken;
 
   Timer? _resendTimer;
-  int _resendCountdown = 30;
+  int _resendCountdown = 60;
 
   @override
   void initState() {
@@ -69,7 +69,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   void _startResendTimer() {
     _resendTimer?.cancel();
-    setState(() => _resendCountdown = 30);
+    setState(() => _resendCountdown = 60);
     _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
       if (_resendCountdown > 0) {
@@ -149,11 +149,25 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 
-  /// Step 1: Send OTP to mobile/WhatsApp
-  Future<void> _sendOtp() async {
-    if (!_phoneKey.currentState!.validate()) return;
+  /// Step 1 / Resend: Send OTP to mobile/WhatsApp
+  Future<void> _sendOtp({bool isResend = false}) async {
+    if (!isResend) {
+      if (_phoneKey.currentState != null && !_phoneKey.currentState!.validate()) return;
+    }
 
-    final phone = _phoneController.text.trim();
+    final rawPhone = (_verifiedPhone ?? _phoneController.text).trim();
+    final digits = rawPhone.replaceAll(RegExp(r'\D'), '');
+    final phone = digits.length >= 10 ? digits.substring(digits.length - 10) : digits;
+
+    if (phone.isEmpty) {
+      _showMessage("Please enter your mobile number");
+      return;
+    }
+    if (phone.length != 10 || !RegExp(r'^[6-9]\d{9}$').hasMatch(phone)) {
+      _showMessage("Please enter a valid 10-digit mobile number");
+      return;
+    }
+
     setState(() => _loading = true);
 
     try {
@@ -342,7 +356,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         onTap: () => FocusScope.of(context).unfocus(),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 36),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -617,10 +631,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
               ),
               TextButton(
-                onPressed: _resendCountdown == 0 && !_loading ? _sendOtp : null,
+                onPressed: _resendCountdown == 0 && !_loading ? () => _sendOtp(isResend: true) : null,
                 child: Text(
                   _resendCountdown > 0
-                      ? "Resend in ${_resendCountdown}s"
+                      ? "Resend OTP in ${_resendCountdown}s"
                       : "Resend OTP",
                   style: TextStyle(
                     color: _resendCountdown == 0 ? const Color(0xFFEA0180) : Colors.grey,

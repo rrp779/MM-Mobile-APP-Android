@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -44,13 +45,47 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
   bool registerPhoneVerified = false;
   String? registerVerifiedPhone;
 
+  Timer? _loginResendTimer;
+  int _loginResendCountdown = 0;
+  Timer? _registerResendTimer;
+  int _registerResendCountdown = 0;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
   }
+
+  void _startLoginResendTimer() {
+    _loginResendTimer?.cancel();
+    setState(() => _loginResendCountdown = 60);
+    _loginResendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      if (_loginResendCountdown > 0) {
+        setState(() => _loginResendCountdown--);
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
+  void _startRegisterResendTimer() {
+    _registerResendTimer?.cancel();
+    setState(() => _registerResendCountdown = 60);
+    _registerResendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      if (_registerResendCountdown > 0) {
+        setState(() => _registerResendCountdown--);
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _loginResendTimer?.cancel();
+    _registerResendTimer?.cancel();
     emailController.dispose();
     passwordController.dispose();
     firstNameController.dispose();
@@ -236,8 +271,10 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
           registerOtpSent = true;
           registerPhoneVerified = false;
           registerVerifiedPhone = null;
+          _startRegisterResendTimer();
         } else {
           otpSent = true;
+          _startLoginResendTimer();
         }
       });
 
@@ -324,11 +361,21 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
   Future<void> register() async {
     if (!_registerKey.currentState!.validate()) return;
 
+    if (registerPhoneController.text.trim().isNotEmpty && !registerPhoneVerified) {
+      showMessage("Please verify your WhatsApp number with the OTP before submitting registration.");
+      return;
+    }
+
     setState(() => loading = true);
 
     final client = GraphQLProvider.of(context).value;
 
     final phoneValue = registerVerifiedPhone ?? registerPhoneController.text.trim();
+    final formattedPhone = phoneValue.isEmpty
+        ? null
+        : (phoneValue.startsWith('+')
+            ? phoneValue
+            : (phoneValue.length == 10 ? "+91$phoneValue" : phoneValue));
 
     final result = await client.mutate(
       MutationOptions(
@@ -342,11 +389,11 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
         '''),
         variables: {
           "input": {
-            "firstName": firstNameController.text,
-            "lastName": lastNameController.text,
-            "email": emailController.text,
+            "firstName": firstNameController.text.trim(),
+            "lastName": lastNameController.text.trim(),
+            "email": emailController.text.trim(),
             "password": passwordController.text,
-            "phone": phoneValue.isEmpty ? null : phoneValue,
+            "phone": formattedPhone,
           }
         },
       ),
@@ -614,12 +661,20 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
-              onPressed: loading
+              onPressed: loading || (forRegister ? _registerResendCountdown > 0 : _loginResendCountdown > 0)
                   ? null
                   : () => sendWhatsAppOtp(forRegister: forRegister),
-              child: const Text(
-                "Resend OTP",
-                style: TextStyle(color: Color(0xFFEA0180)),
+              child: Text(
+                (forRegister ? _registerResendCountdown : _loginResendCountdown) > 0
+                    ? "Resend OTP in ${(forRegister ? _registerResendCountdown : _loginResendCountdown)}s"
+                    : "Resend OTP",
+                style: TextStyle(
+                  color: (forRegister ? _registerResendCountdown : _loginResendCountdown) == 0
+                      ? const Color(0xFFEA0180)
+                      : Colors.grey,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
               ),
             ),
           ),
@@ -759,9 +814,10 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
                     Form(
                       key: _loginKey,
                       child: ListView(
+                        padding: const EdgeInsets.only(bottom: 40),
                         children: [
-                          // authMethodSwitch(),
-                          // const SizedBox(height: 22),
+                          authMethodSwitch(),
+                          const SizedBox(height: 22),
 
                           if (loginWithWhatsApp) ...[
                             Container(
@@ -905,6 +961,7 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
                     Form(
                       key: _registerKey,
                       child: ListView(
+                        padding: const EdgeInsets.only(bottom: 40),
                         children: [
                           label("First Name"),
                           const SizedBox(height: 6),
@@ -926,14 +983,14 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
                           ),
 
                           const SizedBox(height: 12),
-                          // phoneVerificationFields(
-                          //   phone: registerPhoneController,
-                          //   otp: registerOtpController,
-                          //   otpWasSent: registerOtpSent,
-                          //   verified: registerPhoneVerified,
-                          //   forRegister: true,
-                          // ),
-                          // const SizedBox(height: 12),
+                          phoneVerificationFields(
+                            phone: registerPhoneController,
+                            otp: registerOtpController,
+                            otpWasSent: registerOtpSent,
+                            verified: registerPhoneVerified,
+                            forRegister: true,
+                          ),
+                          const SizedBox(height: 12),
                           label("Email"),
                           const SizedBox(height: 6),
                           TextFormField(
@@ -1002,7 +1059,8 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
                                 ),
                               ),
                             ),
-                          )
+                          ),
+                          const SizedBox(height: 36),
                         ],
                       ),
                     ),
