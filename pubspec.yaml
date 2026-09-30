@@ -60,6 +60,7 @@ flutter_launcher_icons:
 flutter:
   uses-material-design: true
   assets:
+    - shorebird.yaml
     - .env
     - assets/icon.png
     - assets/logo.png
