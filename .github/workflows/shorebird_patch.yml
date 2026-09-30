@@ -17,25 +17,25 @@ jobs:
   patch-android:
     if: inputs.platform == 'android' || inputs.platform == 'all'
     runs-on: ubuntu-latest
+    env:
+      SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-      - uses: shorebirdtech/actions/setup-shorebird@v1
-        with:
-          shorebird-token: ${{ secrets.SHOREBIRD_TOKEN }}
+      - uses: shorebirdtech/setup-shorebird@v1
       - run: shorebird run flutter pub get
       - run: shorebird patch android --force
 
   patch-ios:
     if: inputs.platform == 'ios' || inputs.platform == 'all'
     runs-on: macos-14
+    env:
+      SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-      - uses: shorebirdtech/actions/setup-shorebird@v1
-        with:
-          shorebird-token: ${{ secrets.SHOREBIRD_TOKEN }}
+      - uses: shorebirdtech/setup-shorebird@v1
       - run: shorebird run flutter pub get
       - run: shorebird patch ios --force
