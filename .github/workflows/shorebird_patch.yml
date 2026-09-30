@@ -26,7 +26,8 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
       - uses: shorebirdtech/setup-shorebird@v1
-      - run: shorebird run flutter pub get
+        with:
+          cache: true
       - run: shorebird patch android --force
 
   patch-ios:
@@ -37,5 +38,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: shorebirdtech/setup-shorebird@v1
-      - run: shorebird run flutter pub get
+        with:
+          cache: true
       - run: shorebird patch ios --force

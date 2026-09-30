@@ -26,7 +26,8 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
       - uses: shorebirdtech/setup-shorebird@v1
-      - run: shorebird run flutter pub get
+        with:
+          cache: true
       - run: shorebird release android --force
       - name: Upload Release Artifacts
         uses: actions/upload-artifact@v4
@@ -42,7 +43,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: shorebirdtech/setup-shorebird@v1
-      - run: shorebird run flutter pub get
+        with:
+          cache: true
       - run: shorebird release ios --force --no-codesign
       - name: Upload Release Artifacts
         uses: actions/upload-artifact@v4
