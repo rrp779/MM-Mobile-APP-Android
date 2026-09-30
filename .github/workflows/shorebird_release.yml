@@ -28,7 +28,8 @@ jobs:
       - uses: shorebirdtech/setup-shorebird@v1
         with:
           cache: true
-      - run: shorebird release android
+      - run: shorebird doctor --verbose
+      - run: shorebird release android --verbose
       - name: Upload Release Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -45,7 +46,8 @@ jobs:
       - uses: shorebirdtech/setup-shorebird@v1
         with:
           cache: true
-      - run: shorebird release ios --no-codesign
+      - run: shorebird doctor --verbose
+      - run: shorebird release ios --no-codesign --verbose
       - name: Upload Release Artifacts
         uses: actions/upload-artifact@v4
         with:
