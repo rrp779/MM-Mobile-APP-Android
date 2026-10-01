@@ -54,7 +54,7 @@ jobs:
 
       # TEMP: remove once the release passes
       - name: "TEMP: Gradle diagnostics"
-        run: shorebird flutter build appbundle --release --verbose
+        run: shorebird release android --flutter-version=3.41.6 --dry-run --verbose
 
       - name: Shorebird Release Android
         run: shorebird release android --flutter-version=3.41.6 --verbose
