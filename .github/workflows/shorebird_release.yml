@@ -20,28 +20,33 @@ jobs:
     env:
       SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.29.0'
-          channel: 'stable'
-          cache: true
-      - uses: shorebirdtech/setup-shorebird@v1
-        with:
-          cache: true
-      - run: flutter pub get
-      - run: shorebird doctor --verbose
-      - run: shorebird release android --flutter-version=3.29.0 --verbose
 
-      - name: Upload Release Artifacts
+      - name: Setup Shorebird
+        uses: shorebirdtech/setup-shorebird@v1
+        with:
+          cache: true
+
+      - name: Shorebird Doctor
+        run: shorebird doctor --verbose
+
+      - name: Shorebird Release Android
+        run: shorebird release android --flutter-version=3.29.0 --verbose
+
+      - name: Upload Android Release Artifacts
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: shorebird-android-release
           path: build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: warn
 
   release-ios:
     if: inputs.platform == 'ios' || inputs.platform == 'all'
@@ -49,29 +54,26 @@ jobs:
     env:
       SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.29.0'
-          channel: 'stable'
-          cache: true
-      - uses: shorebirdtech/setup-shorebird@v1
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Shorebird
+        uses: shorebirdtech/setup-shorebird@v1
         with:
           cache: true
-      - run: flutter pub get
-      - name: Install CocoaPods dependencies
-        run: |
-          cd ios
-          pod repo update || true
-          pod install
-          cd ..
-      - run: shorebird doctor --verbose
-      - run: shorebird release ios --flutter-version=3.29.0 --no-codesign --verbose
-      - name: Upload Release Artifacts
+
+      - name: Shorebird Doctor
+        run: shorebird doctor --verbose
+
+      - name: Shorebird Release iOS (No CodeSign)
+        run: shorebird release ios --flutter-version=3.29.0 --no-codesign --verbose
+
+      - name: Upload iOS Release Artifacts
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: shorebird-ios-release
           path: |
-            build/ios/ipa/*.ipa
             build/ios/archive/*.xcarchive
-
+            build/ios/ipa/*.ipa
+          if-no-files-found: warn

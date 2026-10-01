@@ -20,15 +20,25 @@ jobs:
     env:
       SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-      - uses: shorebirdtech/setup-shorebird@v1
+
+      - name: Setup Shorebird
+        uses: shorebirdtech/setup-shorebird@v1
         with:
           cache: true
-      - run: shorebird patch android --force
+
+      - name: Shorebird Doctor
+        run: shorebird doctor --verbose
+
+      - name: Shorebird Patch Android
+        run: shorebird patch android --force --verbose
 
   patch-ios:
     if: inputs.platform == 'ios' || inputs.platform == 'all'
@@ -36,8 +46,16 @@ jobs:
     env:
       SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: shorebirdtech/setup-shorebird@v1
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Shorebird
+        uses: shorebirdtech/setup-shorebird@v1
         with:
           cache: true
-      - run: shorebird patch ios --force
+
+      - name: Shorebird Doctor
+        run: shorebird doctor --verbose
+
+      - name: Shorebird Patch iOS
+        run: shorebird patch ios --force --no-codesign --verbose
