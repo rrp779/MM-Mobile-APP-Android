@@ -60,5 +60,6 @@ app.*.map.json
 # Keystores and signing
 *.jks
 *.keystore
-!android/app/upload-keystore.jks
-!android/key.properties
+android/app/*.jks
+android/app/*.keystore
+android/key.properties

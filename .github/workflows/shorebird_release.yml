@@ -34,11 +34,26 @@ jobs:
         with:
           cache: true
 
+      - name: Decode Android Keystore and configure key.properties
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          cat <<EOF > android/key.properties
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF
+
       - name: Shorebird Doctor
         run: shorebird doctor --verbose
 
       - name: Shorebird Release Android
-        run: shorebird release android --flutter-version=3.29.0 --verbose
+        run: shorebird release android --flutter-version=3.41.6 --verbose
 
       - name: Upload Android Release Artifacts
         uses: actions/upload-artifact@v4
@@ -66,7 +81,7 @@ jobs:
         run: shorebird doctor --verbose
 
       - name: Shorebird Release iOS (No CodeSign)
-        run: shorebird release ios --flutter-version=3.29.0 --no-codesign --verbose
+        run: shorebird release ios --flutter-version=3.41.6 --no-codesign --verbose
 
       - name: Upload iOS Release Artifacts
         uses: actions/upload-artifact@v4
