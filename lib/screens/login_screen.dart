@@ -5,12 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../widgets/app_icon.dart';
 import '../customer/customer_model.dart';
 import '../screens/profile_screen.dart';
 import '../config/backend_config.dart';
 import '../services/api_client.dart';
-import 'forgot_password_screen.dart';
 
 class CustomerLoginRegister extends StatefulWidget {
   const CustomerLoginRegister({super.key});
@@ -21,14 +19,11 @@ class CustomerLoginRegister extends StatefulWidget {
 
 class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
     with SingleTickerProviderStateMixin {
-
   final _loginKey = GlobalKey<FormState>();
   final _registerKey = GlobalKey<FormState>();
 
   late TabController _tabController;
 
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
   final firstNameController = TextEditingController();
   final lastNameController = TextEditingController();
   final phoneController = TextEditingController();
@@ -36,14 +31,12 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
   final registerPhoneController = TextEditingController();
   final registerOtpController = TextEditingController();
 
-  bool obscure = true;
   bool loading = false;
-  bool remember = false;
-  bool loginWithWhatsApp = false;
   bool otpSent = false;
   bool registerOtpSent = false;
   bool registerPhoneVerified = false;
   String? registerVerifiedPhone;
+  Map<String, dynamic>? registerVerifiedCustomer;
 
   Timer? _loginResendTimer;
   int _loginResendCountdown = 0;
@@ -54,6 +47,9 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   void _startLoginResendTimer() {
@@ -86,8 +82,6 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
   void dispose() {
     _loginResendTimer?.cancel();
     _registerResendTimer?.cancel();
-    emailController.dispose();
-    passwordController.dispose();
     firstNameController.dispose();
     lastNameController.dispose();
     phoneController.dispose();
@@ -107,7 +101,6 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
       context: context,
       barrierDismissible: true,
       builder: (_) {
-
         return AlertDialog(
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
@@ -137,111 +130,19 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
       },
     );
   }
-  /// LOGIN
-  Future<void> login({
-    bool validateForm = true,
-    bool showSuccessMessage = true,
-  }) async {
-    if (validateForm && !_loginKey.currentState!.validate()) return;
-
-    setState(() => loading = true);
-
-    final client = GraphQLProvider.of(context).value;
-
-    final result = await client.mutate(
-      MutationOptions(
-        document: gql(r'''
-        mutation customerAccessTokenCreate($input: CustomerAccessTokenCreateInput!) {
-          customerAccessTokenCreate(input:$input) {
-            customerAccessToken {
-              accessToken
-              expiresAt
-            }
-            customerUserErrors {
-              message
-            }
-          }
-        }
-        '''),
-        variables: {
-          "input": {
-            "email": emailController.text.trim(),
-            "password": passwordController.text,
-          }
-        },
-      ),
-    );
-
-    if (kDebugMode) {
-      print(result.data);
-      print(result.exception);
-    }
-
-    setState(() => loading = false);
-
-    if (result.hasException) {
-      showMessage(result.exception.toString());
-      return;
-    }
-
-    final errors =
-    result.data!['customerAccessTokenCreate']['customerUserErrors'];
-
-    if (errors.isNotEmpty) {
-      final apiMessage = errors[0]['message'].toString().toLowerCase();
-
-      String userMessage;
-
-      if (apiMessage.contains("unidentified") ||
-          apiMessage.contains("invalid") ||
-          apiMessage.contains("customer")) {
-
-        userMessage = "Invalid email or password";
-
-      } else {
-        userMessage = "Something went wrong. Please try again";
-      }
-
-      showMessage(userMessage);
-      return;
-    }
-
-    final token =
-    result.data!['customerAccessTokenCreate']['customerAccessToken'];
-
-    final prefs = await SharedPreferences.getInstance();
-
-    await prefs.setString(
-        "customer",
-        jsonEncode({
-          "accessToken": token["accessToken"],
-          "expiresAt": token["expiresAt"],
-        }));
-
-    if (context.mounted) {
-      context.read<CustomerModel>().getCustomer(context);
-      if (showSuccessMessage) {
-        showMessage("Login successful", isError: false);
-      }
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const AccountPage(),
-        ),
-      );
-    }
-  }
 
   Future<void> sendWhatsAppOtp({bool forRegister = false}) async {
-    final rawPhone = (forRegister ? registerPhoneController : phoneController).text.trim();
+    final rawPhone =
+        (forRegister ? registerPhoneController : phoneController).text.trim();
     final digits = rawPhone.replaceAll(RegExp(r'\D'), '');
-    final last10 = digits.length >= 10 ? digits.substring(digits.length - 10) : digits;
+    final last10 =
+        digits.length >= 10 ? digits.substring(digits.length - 10) : digits;
     if (last10.isEmpty) {
-      showMessage("Please enter your mobile number");
+      showMessage("Please enter your WhatsApp number");
       return;
     }
     if (last10.length != 10 || !RegExp(r'^[6-9]\d{9}$').hasMatch(last10)) {
-      showMessage("Please enter a valid 10-digit mobile number");
+      showMessage("Please enter a valid 10-digit WhatsApp number");
       return;
     }
     final phone = last10;
@@ -256,7 +157,8 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
       );
 
       if (response.statusCode == 404) {
-        showMessage("Endpoint not found (404). Please ensure the backend is deployed with WhatsApp OTP routes.");
+        showMessage(
+            "Endpoint not found (404). Please ensure the backend is deployed with WhatsApp OTP routes.");
         return;
       }
 
@@ -271,6 +173,7 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
           registerOtpSent = true;
           registerPhoneVerified = false;
           registerVerifiedPhone = null;
+          registerVerifiedCustomer = null;
           _startRegisterResendTimer();
         } else {
           otpSent = true;
@@ -283,7 +186,8 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
         isError: false,
       );
     } on FormatException {
-      showMessage("Received invalid response format from server. Please verify the backend is running correctly.");
+      showMessage(
+          "Received invalid response format from server. Please verify the backend is running correctly.");
     } catch (_) {
       showMessage(
         "We could not send the WhatsApp OTP right now. Please check your internet connection and try again.",
@@ -293,12 +197,17 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
     }
   }
 
-  Future<void> verifyWhatsAppOtp({bool forRegister = false}) async {
-    final phone = (forRegister ? registerPhoneController : phoneController).text.trim();
-    final otp = (forRegister ? registerOtpController : otpController).text.trim();
+  Future<bool> verifyWhatsAppOtp({
+    bool forRegister = false,
+    bool showVerifiedDialog = true,
+  }) async {
+    final phone =
+        (forRegister ? registerPhoneController : phoneController).text.trim();
+    final otp =
+        (forRegister ? registerOtpController : otpController).text.trim();
     if (phone.isEmpty || otp.length != 6) {
       showMessage("Enter the 6 digit OTP");
-      return;
+      return false;
     }
 
     setState(() => loading = true);
@@ -312,35 +221,43 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
           "otp": otp,
           "firstName": firstNameController.text.trim(),
           "lastName": lastNameController.text.trim(),
-          "verifyOnly": forRegister,
+          "verifyOnly": false,
         }),
       );
 
       if (response.statusCode == 404) {
-        showMessage("Endpoint not found (404). Please ensure the backend is deployed with WhatsApp OTP routes.");
-        return;
+        showMessage(
+            "Endpoint not found (404). Please ensure the backend is deployed with WhatsApp OTP routes.");
+        return false;
       }
 
       final data = jsonDecode(response.body);
       if (response.statusCode >= 400 || data["success"] != true) {
         showMessage(data["message"] ?? "Invalid OTP");
-        return;
+        return false;
       }
+
+      final customer = data["customer"] as Map<String, dynamic>?;
 
       if (forRegister) {
         setState(() {
           registerPhoneVerified = true;
-          registerVerifiedPhone = data["phone"]?.toString();
+          registerVerifiedPhone =
+              customer?["phone"]?.toString() ?? data["phone"]?.toString() ?? phone;
+          registerVerifiedCustomer = customer;
         });
-        showMessage("WhatsApp number verified", isError: false);
-        return;
+        if (showVerifiedDialog) {
+          showMessage("WhatsApp number verified", isError: false);
+        }
+        return true;
       }
 
-      final customer = data["customer"];
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString("customer", jsonEncode(customer));
+      if (customer != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString("customer", jsonEncode(customer));
+      }
 
-      if (!mounted) return;
+      if (!mounted) return false;
       context.read<CustomerModel>().getCustomer(context);
       Navigator.pushReplacement(
         context,
@@ -348,130 +265,121 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
           builder: (_) => const AccountPage(),
         ),
       );
+      return true;
     } catch (_) {
       showMessage(
         "We could not verify the OTP right now. Please check your internet connection and try again.",
       );
+      return false;
     } finally {
       if (mounted) setState(() => loading = false);
     }
   }
 
-  /// REGISTER
+  /// REGISTER WITH WHATSAPP ONLY
   Future<void> register() async {
     if (!_registerKey.currentState!.validate()) return;
 
-    if (registerPhoneController.text.trim().isNotEmpty && !registerPhoneVerified) {
-      showMessage("Please verify your WhatsApp number with the OTP before submitting registration.");
+    // If user entered the 6-digit OTP but hasn't tapped "Verify WhatsApp OTP" yet, verify automatically
+    if (!registerPhoneVerified) {
+      if (registerOtpSent && registerOtpController.text.trim().length == 6) {
+        final ok = await verifyWhatsAppOtp(
+          forRegister: true,
+          showVerifiedDialog: false,
+        );
+        if (!ok) return;
+      } else {
+        showMessage(
+          "Please verify your WhatsApp number with the OTP before registering.",
+        );
+        return;
+      }
+    }
+
+    if (registerVerifiedCustomer == null) {
+      showMessage("Unable to complete registration. Please verify OTP again.");
       return;
     }
 
     setState(() => loading = true);
 
-    final client = GraphQLProvider.of(context).value;
+    try {
+      final accessToken = registerVerifiedCustomer!["accessToken"]?.toString();
+      final fName = firstNameController.text.trim();
+      final lName = lastNameController.text.trim();
 
-    final phoneValue = registerVerifiedPhone ?? registerPhoneController.text.trim();
-    final formattedPhone = phoneValue.isEmpty
-        ? null
-        : (phoneValue.startsWith('+')
-            ? phoneValue
-            : (phoneValue.length == 10 ? "+91$phoneValue" : phoneValue));
-
-    final result = await client.mutate(
-      MutationOptions(
-        document: gql(r'''
-        mutation customerCreate($input:CustomerCreateInput!){
-          customerCreate(input:$input){
-            customer { id }
-            customerUserErrors { message }
+      // Update customer's firstName & lastName on Shopify if accessToken is present
+      if (accessToken != null && accessToken.isNotEmpty && (fName.isNotEmpty || lName.isNotEmpty)) {
+        try {
+          final client = GraphQLProvider.of(context).value;
+          await client.mutate(
+            MutationOptions(
+              document: gql(r'''
+                mutation customerUpdate($customerAccessToken: String!, $customer: CustomerUpdateInput!) {
+                  customerUpdate(customerAccessToken: $customerAccessToken, customer: $customer) {
+                    customer { id firstName lastName }
+                    customerUserErrors { message }
+                  }
+                }
+              '''),
+              variables: {
+                "customerAccessToken": accessToken,
+                "customer": {
+                  if (fName.isNotEmpty) "firstName": fName,
+                  if (lName.isNotEmpty) "lastName": lName,
+                },
+              },
+            ),
+          );
+        } catch (e) {
+          if (kDebugMode) {
+            print("Optional customerUpdate error: $e");
           }
         }
-        '''),
-        variables: {
-          "input": {
-            "firstName": firstNameController.text.trim(),
-            "lastName": lastNameController.text.trim(),
-            "email": emailController.text.trim(),
-            "password": passwordController.text,
-            "phone": formattedPhone,
-          }
-        },
-      ),
-    );
-
-    setState(() => loading = false);
-
-    if (result.hasException) {
-      showMessage(result.exception.toString());
-      return;
-    }
-
-    final errors = result.data!['customerCreate']['customerUserErrors'];
-
-    if (errors.isNotEmpty) {
-      final msg = errors[0]['message'].toString();
-      final isVerification = msg.toLowerCase().contains("sent an email") ||
-          msg.toLowerCase().contains("verify your email") ||
-          msg.toLowerCase().contains("verification");
-
-      if (isVerification) {
-        showMessage(
-          msg,
-          isError: false,
-          onOk: () {
-            _tabController.animateTo(0);
-          },
-        );
-      } else {
-        showMessage(msg);
       }
-      return;
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString("customer", jsonEncode(registerVerifiedCustomer));
+
+      if (!mounted) return;
+      setState(() => loading = false);
+
+      context.read<CustomerModel>().getCustomer(context);
+      showMessage(
+        "Account created successfully",
+        isError: false,
+        onOk: () {
+          if (!mounted) return;
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const AccountPage(),
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      if (mounted) setState(() => loading = false);
+      showMessage("Something went wrong. Please try again.");
     }
-
-    showMessage(
-      "Account created successfully",
-      isError: false,
-      onOk: () => login(
-        validateForm: false,
-        showSuccessMessage: false,
-      ),
-    );
-  }
-
-  /// FORGOT PASSWORD
-  void forgotPassword() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ForgotPasswordScreen(
-          initialPhoneOrEmail: phoneController.text.trim().isNotEmpty
-              ? phoneController.text.trim()
-              : emailController.text.trim(),
-        ),
-      ),
-    );
   }
 
   InputDecoration input(String hint) {
     return InputDecoration(
       hintText: "Enter your ${hint.toLowerCase()}",
       hintStyle: const TextStyle(color: Colors.grey, fontSize: 12),
-
       contentPadding: const EdgeInsets.symmetric(
         horizontal: 15,
         vertical: 12,
       ),
-
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: Color(0xFFE5E5E5)),
       ),
-
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: Color(0xFFE5E5E5)),
       ),
-
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: Color(0xFFEA0180)),
@@ -487,77 +395,6 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
         fontWeight: FontWeight.w500,
         color: Colors.black,
       ),
-    );
-  }
-
-  Widget authMethodSwitch() {
-    Widget option({
-      required String text,
-      required IconData icon,
-      required bool selected,
-      required VoidCallback onTap,
-    }) {
-      return Expanded(
-        child: GestureDetector(
-          onTap: onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            height: 48,
-            decoration: BoxDecoration(
-              color: selected ? const Color(0xFFEA0180) : Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: selected ? const Color(0xFFEA0180) : const Color(0xFFE5E5E5),
-              ),
-              boxShadow: selected
-                  ? [
-                      BoxShadow(
-                        color: const Color(0xFFEA0180).withOpacity(0.18),
-                        blurRadius: 12,
-                        offset: const Offset(0, 6),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  icon,
-                  size: 18,
-                  color: selected ? Colors.white : Colors.black87,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  text,
-                  style: TextStyle(
-                    color: selected ? Colors.white : Colors.black87,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Row(
-      children: [
-        option(
-          text: "WhatsApp",
-          icon: Icons.chat_bubble_outline,
-          selected: loginWithWhatsApp,
-          onTap: () => setState(() => loginWithWhatsApp = true),
-        ),
-        const SizedBox(width: 10),
-        option(
-          text: "Email",
-          icon: Icons.mail_outline,
-          selected: !loginWithWhatsApp,
-          onTap: () => setState(() => loginWithWhatsApp = false),
-        ),
-      ],
     );
   }
 
@@ -577,7 +414,7 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
           controller: phone,
           keyboardType: TextInputType.phone,
           maxLength: 10,
-          decoration: input("10-digit mobile number").copyWith(
+          decoration: input("10-digit WhatsApp number").copyWith(
             prefixIcon: const Padding(
               padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
               child: Text(
@@ -599,16 +436,19 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
               setState(() {
                 registerPhoneVerified = false;
                 registerVerifiedPhone = null;
+                registerVerifiedCustomer = null;
               });
             }
           },
           validator: (v) {
             final val = v?.trim() ?? "";
-            if (val.isEmpty) return "Please enter your mobile number";
+            if (val.isEmpty) return "Please enter your WhatsApp number";
             final digits = val.replaceAll(RegExp(r'\D'), '');
-            final last10 = digits.length >= 10 ? digits.substring(digits.length - 10) : digits;
-            if (last10.length != 10 || !RegExp(r'^[6-9]\d{9}$').hasMatch(last10)) {
-              return "Please enter a valid 10-digit mobile number";
+            final last10 =
+                digits.length >= 10 ? digits.substring(digits.length - 10) : digits;
+            if (last10.length != 10 ||
+                !RegExp(r'^[6-9]\d{9}$').hasMatch(last10)) {
+              return "Please enter a valid 10-digit WhatsApp number";
             }
             return null;
           },
@@ -621,7 +461,7 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
             controller: otp,
             keyboardType: TextInputType.number,
             maxLength: 6,
-            decoration: input("OTP").copyWith(counterText: ""),
+            decoration: input("6-digit OTP").copyWith(counterText: ""),
           ),
         ],
         const SizedBox(height: 14),
@@ -644,32 +484,52 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
                 borderRadius: BorderRadius.circular(14),
               ),
             ),
-            child: Text(
-              verified
-                  ? "WhatsApp Verified"
-                  : otpWasSent
-                      ? "Verify WhatsApp OTP"
-                      : "Send WhatsApp OTP",
-              style: TextStyle(
-                color: verified ? Colors.green : const Color(0xFF128C7E),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+            child: loading && !forRegister
+                ? const SizedBox(
+                    height: 22,
+                    width: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: Color(0xFF128C7E),
+                    ),
+                  )
+                : Text(
+                    verified
+                        ? "WhatsApp Verified"
+                        : otpWasSent
+                            ? (forRegister
+                                ? "Verify WhatsApp OTP"
+                                : "Verify OTP & Log In")
+                            : "Send WhatsApp OTP",
+                    style: TextStyle(
+                      color: verified ? Colors.green : const Color(0xFF128C7E),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
           ),
         ),
         if (otpWasSent && !verified)
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
-              onPressed: loading || (forRegister ? _registerResendCountdown > 0 : _loginResendCountdown > 0)
+              onPressed: loading ||
+                      (forRegister
+                          ? _registerResendCountdown > 0
+                          : _loginResendCountdown > 0)
                   ? null
                   : () => sendWhatsAppOtp(forRegister: forRegister),
               child: Text(
-                (forRegister ? _registerResendCountdown : _loginResendCountdown) > 0
+                (forRegister
+                            ? _registerResendCountdown
+                            : _loginResendCountdown) >
+                        0
                     ? "Resend OTP in ${(forRegister ? _registerResendCountdown : _loginResendCountdown)}s"
                     : "Resend OTP",
                 style: TextStyle(
-                  color: (forRegister ? _registerResendCountdown : _loginResendCountdown) == 0
+                  color: (forRegister
+                              ? _registerResendCountdown
+                              : _loginResendCountdown) ==
+                          0
                       ? const Color(0xFFEA0180)
                       : Colors.grey,
                   fontWeight: FontWeight.bold,
@@ -682,36 +542,30 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-
       appBar: AppBar(
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
-        title: Column(
+        title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               "Account",
               style: TextStyle(fontSize: 16),
             ),
-
           ],
         ),
       ),
-
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             children: [
-
               const SizedBox(height: 30),
-
               Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -724,19 +578,15 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
                   ],
                 ),
               ),
-
               const SizedBox(height: 26),
-
               const Text(
                 "Create an account or log in to explore\nabout our app",
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey),
               ),
-
               const SizedBox(height: 30),
 
               /// -------- TAB SWITCH --------
-
               Container(
                 height: 45,
                 decoration: BoxDecoration(
@@ -745,7 +595,6 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
                 ),
                 child: Stack(
                   children: [
-                    /// ANIMATED BACKGROUND
                     AnimatedAlign(
                       duration: const Duration(milliseconds: 250),
                       curve: Curves.easeInOut,
@@ -761,10 +610,8 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
                         ),
                       ),
                     ),
-                    /// BUTTONS
                     Row(
                       children: [
-
                         Expanded(
                           child: GestureDetector(
                             onTap: () {
@@ -779,7 +626,6 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
                             ),
                           ),
                         ),
-
                         Expanded(
                           child: GestureDetector(
                             onTap: () {
@@ -803,161 +649,54 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
               const SizedBox(height: 25),
 
               /// -------- FORMS --------
-
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
                   children: [
-
-                    /// LOGIN FORM
-
+                    /// LOGIN FORM (WHATSAPP ONLY)
                     Form(
                       key: _loginKey,
                       child: ListView(
                         padding: const EdgeInsets.only(bottom: 40),
                         children: [
-                          authMethodSwitch(),
-                          const SizedBox(height: 22),
-
-                          if (loginWithWhatsApp) ...[
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF8FFFB),
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(color: const Color(0xFFE0F4E8)),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    "Fast login with WhatsApp",
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  const Text(
-                                    "Enter your WhatsApp number and verify the OTP.",
-                                    style: TextStyle(color: Colors.grey),
-                                  ),
-                                  const SizedBox(height: 18),
-                                  phoneVerificationFields(
-                                    phone: phoneController,
-                                    otp: otpController,
-                                    otpWasSent: otpSent,
-                                    verified: false,
-                                    forRegister: false,
-                                  ),
-                                ],
-                              ),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FFFB),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: const Color(0xFFE0F4E8)),
                             ),
-                          ] else ...[
-                            label("Email"),
-                            const SizedBox(height: 6),
-
-                            TextFormField(
-                              controller: emailController,
-                              decoration: input("Email").copyWith(
-                                prefixIcon: const Icon(Icons.mail_outline),
-                              ),
-                              validator: (v) =>
-                              v!.isEmpty ? "Enter email" : null,
-                            ),
-
-                            const SizedBox(height: 16),
-
-                            label("Password"),
-                            const SizedBox(height: 6),
-
-                            TextFormField(
-                              controller: passwordController,
-                              obscureText: obscure,
-                              decoration: input("Password").copyWith(
-                                prefixIcon: const Icon(Icons.lock_outline),
-                                suffixIcon: IconButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      obscure = !obscure;
-                                    });
-                                  },
-                                  icon: AppIcon(
-                                    isActive: false,
-                                    outlinePath: obscure
-                                        ? 'assets/icons/HideOutline.svg'
-                                        : 'assets/icons/ShowOutline.svg',
-                                    filledPath: obscure
-                                        ? 'assets/icons/HideOutline.svg'
-                                        : 'assets/icons/ShowOutline.svg',
-                                    size: 22,
-                                  ),
-                                ),
-                              ),
-                              validator: (v) =>
-                              v!.isEmpty ? "Enter password" : null,
-                            ),
-
-                            const SizedBox(height: 8),
-
-                            Row(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Checkbox(
-                                  value: remember,
-                                  onChanged: (v) {
-                                    setState(() {
-                                      remember = v!;
-                                    });
-                                  },
-                                ),
-                                const Text("Remember me"),
-                                const Spacer(),
-                                GestureDetector(
-                                  onTap: forgotPassword,
-                                  child: const Text(
-                                    "Forgot Password?",
-                                    style: TextStyle(color: Color(0xFFEA0180)),
+                                const Text(
+                                  "Fast login with WhatsApp",
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
                                   ),
-                                )
+                                ),
+                                const SizedBox(height: 6),
+                                const Text(
+                                  "Enter your WhatsApp number and verify the OTP.",
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                                const SizedBox(height: 18),
+                                phoneVerificationFields(
+                                  phone: phoneController,
+                                  otp: otpController,
+                                  otpWasSent: otpSent,
+                                  verified: false,
+                                  forRegister: false,
+                                ),
                               ],
                             ),
-
-                            const SizedBox(height: 20),
-
-                            SizedBox(
-                              height: 52,
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: loading ? null : () => login(),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor:
-                                  const  Color(0xFFEA0180),
-
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                    BorderRadius.circular(14),
-                                  ),
-                                ),
-                                child: loading
-                                    ? const CircularProgressIndicator(
-                                    color: Colors.white)
-                                    : const Text(
-                                  "Log In",
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ]
+                          ),
                         ],
                       ),
                     ),
 
-                    /// REGISTER FORM
-
+                    /// REGISTER FORM (WHATSAPP ONLY)
                     Form(
                       key: _registerKey,
                       child: ListView(
@@ -969,9 +708,8 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
                             controller: firstNameController,
                             decoration: input("First Name"),
                             validator: (v) =>
-                            v!.isEmpty ? "Enter first name" : null,
+                                v == null || v.trim().isEmpty ? "Enter first name" : null,
                           ),
-
                           const SizedBox(height: 12),
                           label("Last Name"),
                           const SizedBox(height: 6),
@@ -979,9 +717,8 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
                             controller: lastNameController,
                             decoration: input("Last Name"),
                             validator: (v) =>
-                            v!.isEmpty ? "Enter last name" : null,
+                                v == null || v.trim().isEmpty ? "Enter last name" : null,
                           ),
-
                           const SizedBox(height: 12),
                           phoneVerificationFields(
                             phone: registerPhoneController,
@@ -990,74 +727,28 @@ class _CustomerLoginRegisterState extends State<CustomerLoginRegister>
                             verified: registerPhoneVerified,
                             forRegister: true,
                           ),
-                          const SizedBox(height: 12),
-                          label("Email"),
-                          const SizedBox(height: 6),
-                          TextFormField(
-                            controller: emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            decoration: input("Email").copyWith(
-                              prefixIcon: const Icon(Icons.mail_outline),
-                            ),
-                            validator: (v) =>
-                            v!.isEmpty ? "Enter email" : null,
-                          ),
-
-                          const SizedBox(height: 12),
-                          label("Password"),
-                          const SizedBox(height: 6),
-                          TextFormField(
-                            controller: passwordController,
-                            obscureText: obscure,
-                            decoration: input("Password").copyWith(
-                              prefixIcon: const Icon(Icons.lock_outline),
-                              suffixIcon: IconButton(
-                                onPressed: () {
-                                  setState(() {
-                                    obscure = !obscure;
-                                  });
-                                },
-                                icon: AppIcon(
-                                  isActive: false,
-                                  outlinePath: obscure
-                                      ? 'assets/icons/HideOutline.svg'
-                                      : 'assets/icons/ShowOutline.svg',
-                                  filledPath: obscure
-                                      ? 'assets/icons/HideOutline.svg'
-                                      : 'assets/icons/ShowOutline.svg',
-                                  size: 22,
-                                ),
-                              ),
-                            ),
-                            validator: (v) =>
-                            v!.isEmpty ? "Enter password" : null,
-                          ),
-
                           const SizedBox(height: 20),
-
                           SizedBox(
                             height: 52,
                             child: ElevatedButton(
                               onPressed: loading ? null : register,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                const  Color(0xFFEA0180),
-
+                                backgroundColor: const Color(0xFFEA0180),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius:
-                                  BorderRadius.circular(14),
+                                  borderRadius: BorderRadius.circular(14),
                                 ),
                               ),
                               child: loading
                                   ? const CircularProgressIndicator(
-                                  color: Colors.white)
-                                  : const Text("Register",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,// optional (safe)
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
+                                      color: Colors.white)
+                                  : const Text(
+                                      "Register",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
                             ),
                           ),
                           const SizedBox(height: 36),
