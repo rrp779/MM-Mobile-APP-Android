@@ -53,7 +53,7 @@ jobs:
         run: shorebird doctor --verbose
 
       - name: Shorebird Patch Android
-        run: shorebird patch android --allow-native-diffs --allow-asset-diffs --verbose
+        run: shorebird patch --platforms=android --release-version=latest --allow-native-diffs --allow-asset-diffs --verbose
 
   patch-ios:
     if: inputs.platform == 'ios' || inputs.platform == 'all'
@@ -81,4 +81,4 @@ jobs:
         run: shorebird doctor --verbose
 
       - name: Shorebird Patch iOS
-        run: shorebird patch ios --allow-native-diffs --allow-asset-diffs --no-codesign --verbose
+        run: shorebird patch --platforms=ios --release-version=latest --allow-native-diffs --allow-asset-diffs --no-codesign --verbose
