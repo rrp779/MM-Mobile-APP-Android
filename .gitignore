@@ -63,3 +63,11 @@ app.*.map.json
 android/app/*.jks
 android/app/*.keystore
 android/key.properties
+*.p12
+*.cer
+*.key
+*.pem
+*.p8
+*.mobileprovision
+*.certSigningRequest
+*base64.txt
