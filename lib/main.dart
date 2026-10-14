@@ -41,13 +41,13 @@ class AppHttpOverrides extends HttpOverrides {
   @override
   HttpClient createHttpClient(SecurityContext? context) {
     return super.createHttpClient(context)
-      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+      ..badCertificateCallback =
+          (X509Certificate cert, String host, int port) => true;
   }
 }
 
 /// ✅ GLOBAL NAVIGATOR KEY
-final GlobalKey<NavigatorState> navigatorKey =
-GlobalKey<NavigatorState>();
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 /// ✅ BACKGROUND HANDLER
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -58,7 +58,6 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 Future<void> main() async {
-
   WidgetsFlutterBinding.ensureInitialized();
   HttpOverrides.global = AppHttpOverrides();
 
@@ -79,7 +78,7 @@ Future<void> main() async {
 
   final authProvider = AuthProvider();
 
-  // 🚀 Shorebird Over-The-Air (OTA) background update checker
+  // 🚀 Shorebird Over-The-Air (OTA) update check (not awaited: never blocks startup)
   OtaService().checkForUpdates();
 
   runApp(
@@ -119,7 +118,9 @@ void handleNotificationNavigation(RemoteMessage message) {
   }
 
   // 2. Product deep-link
-  if (type == 'product' && data['handle'] != null && data['handle'].toString().isNotEmpty) {
+  if (type == 'product' &&
+      data['handle'] != null &&
+      data['handle'].toString().isNotEmpty) {
     navigatorKey.currentState?.pushNamed(
       '/product',
       arguments: data['handle'],
@@ -140,7 +141,8 @@ void handleNotificationNavigation(RemoteMessage message) {
         arguments: {
           "collectionId": handle,
           "handle": handle,
-          "title": data['title'] ?? (status == 'flash_sale' ? "⚡ Flash Sale" : "Exclusive Offers"),
+          "title": data['title'] ??
+              (status == 'flash_sale' ? "⚡ Flash Sale" : "Exclusive Offers"),
         },
       );
       return;
@@ -148,10 +150,13 @@ void handleNotificationNavigation(RemoteMessage message) {
   }
 
   // 4. Order Updates -> Go to specific Order
-  if (type == 'order' || data['order_number'] != null || data['order_id'] != null) {
+  if (type == 'order' ||
+      data['order_number'] != null ||
+      data['order_id'] != null) {
     String? orderNumber = data['order_number']?.toString();
     if (orderNumber == null || orderNumber.isEmpty) {
-      final title = data['title']?.toString() ?? message.notification?.title ?? "";
+      final title =
+          data['title']?.toString() ?? message.notification?.title ?? "";
       final body = data['body']?.toString() ?? message.notification?.body ?? "";
       final match = RegExp(r'#(\d+)').firstMatch("$title $body");
       if (match != null) {
@@ -176,8 +181,11 @@ void saveNotificationToProvider(RemoteMessage message) {
   final context = navigatorKey.currentContext;
   if (context == null) return;
 
-  final notifTitle = message.notification?.title ?? message.data['title'] ?? "Order Update";
-  final notifBody = message.notification?.body ?? message.data['body'] ?? "New notification received";
+  final notifTitle =
+      message.notification?.title ?? message.data['title'] ?? "Order Update";
+  final notifBody = message.notification?.body ??
+      message.data['body'] ??
+      "New notification received";
   final notifImage = message.notification?.android?.imageUrl ??
       message.data['imageUrl'] ??
       message.data['image_url'];
@@ -207,11 +215,18 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  bool _otaRestartNoticeShown = false;
 
   @override
   void initState() {
     super.initState();
+
+    WidgetsBinding.instance.addObserver(this);
+    OtaService().restartRequired.addListener(_onOtaRestartRequired);
+    // A patch may already have been downloaded before this widget mounted.
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _onOtaRestartRequired());
 
     setupFCM();
 
@@ -227,6 +242,51 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    OtaService().restartRequired.removeListener(_onOtaRestartRequired);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // iOS rarely cold-starts apps, so also check when returning to foreground.
+    if (state == AppLifecycleState.resumed) {
+      OtaService().checkForUpdates(force: false);
+    }
+  }
+
+  /// Tells the user once per session that a downloaded update needs a restart.
+  /// The app cannot restart itself (not allowed on iOS), so the user must
+  /// close and reopen it for the Shorebird engine to boot the new patch.
+  void _onOtaRestartRequired() {
+    if (_otaRestartNoticeShown || !OtaService().restartRequired.value) return;
+    final context = navigatorKey.currentContext;
+    if (context == null) return;
+    _otaRestartNoticeShown = true;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.system_update, color: Colors.white),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                "An app update is ready. Close and reopen the app to apply it.",
+                style: TextStyle(fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Color(0xFFEA0180),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 8),
+      ),
+    );
+  }
+
   void setupFCM() async {
     await NotificationService().initialize();
 
@@ -234,8 +294,12 @@ class _MyAppState extends State<MyApp> {
       saveNotificationToProvider(message);
 
       final context = navigatorKey.currentContext;
-      final notifTitle = message.notification?.title ?? message.data['title'] ?? "Order Update";
-      final notifBody = message.notification?.body ?? message.data['body'] ?? "New notification received";
+      final notifTitle = message.notification?.title ??
+          message.data['title'] ??
+          "Order Update";
+      final notifBody = message.notification?.body ??
+          message.data['body'] ??
+          "New notification received";
 
       if (context != null) {
         // Show in-app banner for instant visual feedback when app is in foreground
@@ -252,7 +316,8 @@ class _MyAppState extends State<MyApp> {
                     children: [
                       Text(
                         notifTitle,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 14),
                       ),
                       Text(
                         notifBody,
@@ -291,6 +356,7 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
+
       /// 🔥 FIX: Always start from splash safely
       initialRoute: '/',
       routes: {
@@ -308,8 +374,7 @@ class _MyAppState extends State<MyApp> {
           return ProductDetailScreen(productId: args as String);
         },
         '/collection': (context) {
-          final data =
-          ModalRoute.of(context)!.settings.arguments as Map;
+          final data = ModalRoute.of(context)!.settings.arguments as Map;
           return CollectionProductsScreen(
             collectionId: data['collectionId'],
             collectionTitle: data['title'],

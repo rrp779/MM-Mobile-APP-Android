@@ -12,9 +12,39 @@ on:
           - android
           - ios
           - all
+      release_version:
+        description: 'Exact Shorebird release to patch, e.g. 1.0.30+37 (must match the build installed from the store)'
+        required: true
+        type: string
+      allow_native_diffs:
+        description: 'UNSAFE: publish even if native code changed (native changes never ship via OTA)'
+        required: false
+        default: false
+        type: boolean
+      allow_asset_diffs:
+        description: 'UNSAFE: publish even if assets changed'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  RELEASE_VERSION: ${{ inputs.release_version }}
+  EXTRA_PATCH_FLAGS: ${{ inputs.allow_native_diffs && '--allow-native-diffs' || '' }} ${{ inputs.allow_asset_diffs && '--allow-asset-diffs' || '' }}
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate release version
+        run: |
+          if ! [[ "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$ ]]; then
+            echo "::error::release_version must look like 1.0.30+37 (got '$RELEASE_VERSION')"
+            exit 1
+          fi
+          echo "Patching release $RELEASE_VERSION, extra flags: '${EXTRA_PATCH_FLAGS// /}'"
+
   patch-android:
+    needs: validate
     if: inputs.platform == 'android' || inputs.platform == 'all'
     runs-on: ubuntu-latest
     env:
@@ -53,9 +83,10 @@ jobs:
         run: shorebird doctor --verbose
 
       - name: Shorebird Patch Android
-        run: shorebird patch --platforms=android --release-version=latest --allow-native-diffs --allow-asset-diffs --verbose
+        run: shorebird patch android --release-version="$RELEASE_VERSION" $EXTRA_PATCH_FLAGS --verbose
 
   patch-ios:
+    needs: validate
     if: inputs.platform == 'ios' || inputs.platform == 'all'
     runs-on: macos-15
     env:
@@ -81,4 +112,4 @@ jobs:
         run: shorebird doctor --verbose
 
       - name: Shorebird Patch iOS
-        run: shorebird patch --platforms=ios --release-version=latest --allow-native-diffs --allow-asset-diffs --no-codesign --verbose
+        run: shorebird patch ios --release-version="$RELEASE_VERSION" --no-codesign $EXTRA_PATCH_FLAGS --verbose

@@ -55,6 +55,17 @@ jobs:
       - name: Shorebird Release Android
         run: shorebird release android --flutter-version=3.41.6 --verbose
 
+      - name: Verify AAB contains the Shorebird engine
+        run: |
+          AAB=build/app/outputs/bundle/release/app-release.aab
+          TMP=$(mktemp -d)
+          unzip -q -o "$AAB" 'base/lib/arm64-v8a/libflutter.so' -d "$TMP"
+          if ! strings -a "$TMP/base/lib/arm64-v8a/libflutter.so" | grep -q 'shorebird_check_for_downloadable_update'; then
+            echo "::error::libflutter.so has no Shorebird updater symbols. This AAB cannot receive OTA patches - do not upload it."
+            exit 1
+          fi
+          echo "Shorebird engine detected in AAB."
+
       - name: Upload Android Release Artifacts
         uses: actions/upload-artifact@v4
         if: always()
@@ -132,6 +143,21 @@ jobs:
           fi
           echo "Found IPA at: $IPA_PATH"
           echo "IPA_PATH=$IPA_PATH" >> $GITHUB_ENV
+
+      - name: Verify IPA contains the Shorebird engine
+        run: |
+          TMP=$(mktemp -d)
+          unzip -q "$IPA_PATH" -d "$TMP"
+          APP=$(find "$TMP/Payload" -maxdepth 1 -name "*.app" | head -n 1)
+          echo "Bundle: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" \
+               "version $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")" \
+               "($(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist"))"
+          ENGINE="$APP/Frameworks/Flutter.framework/Flutter"
+          if ! { nm -gU "$ENGINE" 2>/dev/null; strings -a "$ENGINE"; } | grep -q 'shorebird_check_for_downloadable_update'; then
+            echo "::error::Flutter.framework has no Shorebird updater symbols. This IPA cannot receive OTA patches - not uploading."
+            exit 1
+          fi
+          echo "Shorebird engine detected in IPA."
 
       - name: Upload iOS Release Artifacts
         uses: actions/upload-artifact@v4
