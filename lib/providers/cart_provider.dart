@@ -657,13 +657,20 @@ class CartProvider with ChangeNotifier {
   };
 
   static const Set<String> kajalVariantIds = {
-    "67720339423536", "67720339456304"
+    // Gorgeous Girl Automatic Kajal Pencil with One Stroke Smooth Glide (₹299)
+    "67720339423536", "67720339456304",
+    // Gorgeous Girl Kohl kajal with One Stroke Smooth Glide (₹499)
+    "67744379076912",
+    // Gorgeous Girl Pro 1 Stroke Stay-On Kohl Pencil – Waterproof Long Lasting Kajal (₹449)
+    "67745185628464", "67745185661232", "67745185694000", "67745185726768", "67745185759536"
   };
 
   String _extractNumericId(String? raw) {
     if (raw == null) return "";
-    final digits = RegExp(r'(\d+)').allMatches(raw).map((m) => m.group(0)).toList();
-    return digits.isNotEmpty ? digits.last! : raw;
+    final parts = raw.split('/');
+    final lastPart = parts.last.split('?').first;
+    final match = RegExp(r'\d+').firstMatch(lastPart);
+    return match?.group(0) ?? raw;
   }
 
   double get promotionalDiscount {
@@ -692,43 +699,53 @@ class CartProvider with ChangeNotifier {
     }
 
     // BB Cream (Buy 1 Get 2 Free)
-    int bbQty = 0;
-    double bbUnitPrice = 1099;
+    List<double> bbPrices = [];
     for (var line in _lines) {
       final merch = line['merchandise'];
       final numId = _extractNumericId(merch?['id']?.toString());
       final qty = (line['quantity'] as int?) ?? 1;
+      final price = double.tryParse(merch?['price']?['amount']?.toString() ?? '1099') ?? 1099;
       if (bbCreamVariantIds.contains(numId)) {
-        bbQty += qty;
-        bbUnitPrice = double.tryParse(merch?['price']?['amount']?.toString() ?? '1099') ?? 1099;
+        for (int i = 0; i < qty; i++) {
+          bbPrices.add(price);
+        }
       }
     }
-    if (bbQty >= 2) {
-      int completedBundles = bbQty ~/ 3;
-      int rem = bbQty % 3;
-      int freeItems = completedBundles * 2;
-      if (rem == 2) freeItems += 1;
-      discount += freeItems * bbUnitPrice;
+    if (bbPrices.length >= 2) {
+      bbPrices.sort(); // cheapest units first
+      int count = bbPrices.length;
+      int completedBundles = count ~/ 3;
+      int rem = count % 3;
+      int freeItemsCount = completedBundles * 2;
+      if (rem == 2) freeItemsCount += 1;
+      for (int i = 0; i < freeItemsCount && i < bbPrices.length; i++) {
+        discount += bbPrices[i];
+      }
     }
 
     // Kajal (Buy 1 Get 2 Free)
-    int kajalQty = 0;
-    double kajalUnitPrice = 299;
+    List<double> kajalPrices = [];
     for (var line in _lines) {
       final merch = line['merchandise'];
       final numId = _extractNumericId(merch?['id']?.toString());
       final qty = (line['quantity'] as int?) ?? 1;
+      final price = double.tryParse(merch?['price']?['amount']?.toString() ?? '299') ?? 299;
       if (kajalVariantIds.contains(numId)) {
-        kajalQty += qty;
-        kajalUnitPrice = double.tryParse(merch?['price']?['amount']?.toString() ?? '299') ?? 299;
+        for (int i = 0; i < qty; i++) {
+          kajalPrices.add(price);
+        }
       }
     }
-    if (kajalQty >= 2) {
-      int completedBundles = kajalQty ~/ 3;
-      int rem = kajalQty % 3;
-      int freeItems = completedBundles * 2;
-      if (rem == 2) freeItems += 1;
-      discount += freeItems * kajalUnitPrice;
+    if (kajalPrices.length >= 2) {
+      kajalPrices.sort(); // cheapest units first
+      int count = kajalPrices.length;
+      int completedBundles = count ~/ 3;
+      int rem = count % 3;
+      int freeItemsCount = completedBundles * 2;
+      if (rem == 2) freeItemsCount += 1;
+      for (int i = 0; i < freeItemsCount && i < kajalPrices.length; i++) {
+        discount += kajalPrices[i];
+      }
     }
 
     return discount;
@@ -776,9 +793,9 @@ class CartProvider with ChangeNotifier {
     }
     if (kajalQty > 0) {
       if (kajalQty == 1) {
-        messages.add("🎉 Buy 1 Get 2 Free: 2 extra Automatic Kajals will be delivered FREE!");
+        messages.add("🎉 Buy 1 Get 2 Free: 2 extra Gorgeous Girl Kajals will be delivered FREE!");
       } else if (kajalQty == 2) {
-        messages.add("🎉 Buy 1 Get 2 Free: 1 extra Automatic Kajal will be delivered FREE (1 already free in cart)!");
+        messages.add("🎉 Buy 1 Get 2 Free: 1 extra Gorgeous Girl Kajal will be delivered FREE (1 already free in cart)!");
       } else {
         messages.add("🎉 Buy 1 Get 2 Free applied to Gorgeous Girl Kajal!");
       }
