@@ -524,10 +524,10 @@ class CartPage extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Text("🎉 ", style: TextStyle(fontSize: 16)),
+                  const Text("🎁 ", style: TextStyle(fontSize: 16)),
                   Expanded(
                     child: Text(
-                      msg.replaceFirst(RegExp(r'^[🎁🎉]\s*'), ''),
+                      msg,
                       style: const TextStyle(
                         color: Color(0xFF166534),
                         fontWeight: FontWeight.w600,

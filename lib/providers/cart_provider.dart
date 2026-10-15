@@ -711,13 +711,11 @@ class CartProvider with ChangeNotifier {
         }
       }
     }
-    if (bbPrices.length >= 2) {
+    if (bbPrices.length >= 3) {
       bbPrices.sort(); // cheapest units first
       int count = bbPrices.length;
       int completedBundles = count ~/ 3;
-      int rem = count % 3;
       int freeItemsCount = completedBundles * 2;
-      if (rem == 2) freeItemsCount += 1;
       for (int i = 0; i < freeItemsCount && i < bbPrices.length; i++) {
         discount += bbPrices[i];
       }
@@ -736,13 +734,11 @@ class CartProvider with ChangeNotifier {
         }
       }
     }
-    if (kajalPrices.length >= 2) {
+    if (kajalPrices.length >= 3) {
       kajalPrices.sort(); // cheapest units first
       int count = kajalPrices.length;
       int completedBundles = count ~/ 3;
-      int rem = count % 3;
       int freeItemsCount = completedBundles * 2;
-      if (rem == 2) freeItemsCount += 1;
       for (int i = 0; i < freeItemsCount && i < kajalPrices.length; i++) {
         discount += kajalPrices[i];
       }
@@ -763,9 +759,9 @@ class CartProvider with ChangeNotifier {
     }
     if (hasHnkTool) {
       if (hasPaddleBrushInCart) {
-        messages.add("🎁 Free Gift: HNK Paddle Hair Brush (₹422.50) is 100% FREE!");
+        messages.add("Free Gift Applied: HNK Paddle Hair Brush (₹422.50) is 100% FREE!");
       } else {
-        messages.add("🎁 Free Gift: 1x Hnk Paddle Hair Brush (Worth ₹422.50) will be included FREE in your order!");
+        messages.add("Free Gift Qualified: 1x Hnk Paddle Hair Brush (Worth ₹422.50) will be included FREE in your order!");
       }
     }
 
@@ -776,12 +772,13 @@ class CartProvider with ChangeNotifier {
       if (bbCreamVariantIds.contains(numId)) bbQty += qty;
     }
     if (bbQty > 0) {
-      if (bbQty == 1) {
-        messages.add("🎉 Buy 1 Get 2 Free: 2 extra Gorgeous Girl BB Creams will be delivered FREE!");
+      int freeCount = (bbQty ~/ 3) * 2;
+      if (freeCount > 0) {
+        messages.add("Buy 1 Get 2 Free Applied! ($freeCount Gorgeous Girl BB Cream${freeCount > 1 ? 's are' : ' is'} 100% FREE)");
       } else if (bbQty == 2) {
-        messages.add("🎉 Buy 1 Get 2 Free: 1 extra BB Cream will be delivered FREE (1 already free in cart)!");
-      } else {
-        messages.add("🎉 Buy 1 Get 2 Free applied to Gorgeous Girl BB Cream!");
+        messages.add("Buy 1 Get 2 Free: Add 1 more BB Cream to get 2 items 100% FREE in your cart!");
+      } else if (bbQty == 1) {
+        messages.add("Buy 1 Get 2 Free: Add 2 more BB Creams to get 2 items 100% FREE in your cart!");
       }
     }
 
@@ -792,12 +789,13 @@ class CartProvider with ChangeNotifier {
       if (kajalVariantIds.contains(numId)) kajalQty += qty;
     }
     if (kajalQty > 0) {
-      if (kajalQty == 1) {
-        messages.add("🎉 Buy 1 Get 2 Free: 2 extra Gorgeous Girl Kajals will be delivered FREE!");
+      int freeCount = (kajalQty ~/ 3) * 2;
+      if (freeCount > 0) {
+        messages.add("Buy 1 Get 2 Free Applied! ($freeCount Gorgeous Girl Kajal${freeCount > 1 ? 's are' : ' is'} 100% FREE)");
       } else if (kajalQty == 2) {
-        messages.add("🎉 Buy 1 Get 2 Free: 1 extra Gorgeous Girl Kajal will be delivered FREE (1 already free in cart)!");
-      } else {
-        messages.add("🎉 Buy 1 Get 2 Free applied to Gorgeous Girl Kajal!");
+        messages.add("Buy 1 Get 2 Free: Add 1 more Kajal to get 2 items 100% FREE in your cart!");
+      } else if (kajalQty == 1) {
+        messages.add("Buy 1 Get 2 Free: Add 2 more Kajals to get 2 items 100% FREE in your cart!");
       }
     }
 

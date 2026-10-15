@@ -1382,7 +1382,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           const SizedBox(width: 20),
 
                           Text(
-                            formatPrice(finalAmount),
+                            formatPrice(((item["price"] as num?)?.toDouble() ?? 0.0) * ((item["qty"] as int?) ?? 1)),
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           )
                         ],
@@ -1500,10 +1500,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Text("🎉 ", style: TextStyle(fontSize: 16)),
+                        const Text("🎁 ", style: TextStyle(fontSize: 16)),
                         Expanded(
                           child: Text(
-                            msg.replaceFirst(RegExp(r'^[🎁🎉]\s*'), ''),
+                            msg,
                             style: const TextStyle(
                               color: Color(0xFF166534),
                               fontWeight: FontWeight.w600,
