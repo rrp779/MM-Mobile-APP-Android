@@ -231,7 +231,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
 
     if (hasRegularProduct) {
-      shipping += 80;
+      shipping += 99;
     }
 
     return shipping;

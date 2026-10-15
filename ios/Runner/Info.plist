@@ -39,6 +39,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+
 	<!-- 🔥 NETWORK FIX -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
