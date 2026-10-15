@@ -21,6 +21,7 @@ class CheckoutScreen extends StatefulWidget {
   final double totalMrp;
   final double totalDiscount;
   final double totalAmount;
+  final double promotionalDiscount;
 
   const CheckoutScreen({
     super.key,
@@ -28,6 +29,7 @@ class CheckoutScreen extends StatefulWidget {
     required this.totalMrp,
     required this.totalDiscount,
     required this.totalAmount,
+    this.promotionalDiscount = 0.0,
   });
 
   @override
@@ -49,6 +51,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   String? _confirmedPaymentId;
   String? _paymentErrorMessage;
   double _confirmedCouponDiscount = 0.0;
+  double _confirmedPromotionalDiscount = 0.0;
   double _confirmedShipping = 0.0;
   double _confirmedFinalAmount = 0.0;
 
@@ -268,7 +271,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     /// ✅ USE SAME CALCULATION
     final cartProvider = context.read<CartProvider>();
-    double subtotalAfterDiscount = widget.totalAmount - cartProvider.couponDiscount;
+    double promoDiscount = widget.promotionalDiscount > 0
+        ? widget.promotionalDiscount
+        : cartProvider.promotionalDiscount;
+    double subtotalAfterDiscount = widget.totalAmount - cartProvider.couponDiscount - promoDiscount;
+    if (subtotalAfterDiscount < 0) subtotalAfterDiscount = 0;
     double shipping = calculateShipping();
     double finalAmount = subtotalAfterDiscount + shipping;
 
@@ -291,6 +298,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           "total_mrp": widget.totalMrp,
           "discount": widget.totalDiscount,
           "coupon_discount": cartProvider.couponDiscount,
+          "promotional_discount": promoDiscount,
           "shipping": shipping,
           "email": customer?["email"] ?? "",
           "phone": selectedAddress?["phone"] ?? "",
@@ -367,7 +375,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         return;
       }
 
-      double subtotalAfterDiscount = widget.totalAmount - cartProvider.couponDiscount;
+      double promoDiscount = widget.promotionalDiscount > 0
+          ? widget.promotionalDiscount
+          : cartProvider.promotionalDiscount;
+      double subtotalAfterDiscount = widget.totalAmount - cartProvider.couponDiscount - promoDiscount;
+      if (subtotalAfterDiscount < 0) subtotalAfterDiscount = 0;
       double shipping = calculateShipping();
       double finalAmount = subtotalAfterDiscount + shipping;
       final appliedCoupon = (cartProvider.appliedCoupon ?? couponController.text)
@@ -377,6 +389,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       // Lock in confirmed pricing numbers
       _confirmedCouponDiscount = cartProvider.couponDiscount;
+      _confirmedPromotionalDiscount = promoDiscount;
       _confirmedShipping = shipping;
       _confirmedFinalAmount = finalAmount;
 
@@ -420,6 +433,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
           "couponCode": appliedCoupon.isEmpty ? null : appliedCoupon,
           "couponDiscount": cartProvider.couponDiscount,
+          "promotionalDiscount": promoDiscount,
           "shippingAmount": shipping,
           "totalMrp": widget.totalMrp,
           "productDiscount": widget.totalDiscount,
@@ -948,6 +962,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     _priceRow("Total MRP", formatPrice(widget.totalMrp)),
                     const SizedBox(height: 10),
                     _priceRow("Bag Discount", "- ${formatPrice(widget.totalDiscount)}", valueColor: Colors.green),
+                    if (_confirmedPromotionalDiscount > 0) ...[
+                      const SizedBox(height: 10),
+                      _priceRow("Offer Discount", "- ${formatPrice(_confirmedPromotionalDiscount)}", valueColor: Colors.green),
+                    ],
                     if (_confirmedCouponDiscount > 0) ...[
                       const SizedBox(height: 10),
                       _priceRow("Coupon Discount", "- ${formatPrice(_confirmedCouponDiscount)}", valueColor: Colors.green),
@@ -1218,7 +1236,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final customer = context.watch<CustomerModel>().customer;
     final userName = customer?['firstName'] ?? "Customer";
     /// ✅ GLOBAL CALCULATION (IMPORTANT)
-    double subtotalAfterDiscount = widget.totalAmount - cartProvider.couponDiscount;
+    double promoDiscount = widget.promotionalDiscount > 0
+        ? widget.promotionalDiscount
+        : cartProvider.promotionalDiscount;
+    double subtotalAfterDiscount = widget.totalAmount - cartProvider.couponDiscount - promoDiscount;
+    if (subtotalAfterDiscount < 0) subtotalAfterDiscount = 0;
     double shipping = calculateShipping();
     double finalAmount = subtotalAfterDiscount + shipping;
     Future<void> openCouponSheet() async {
@@ -1466,6 +1488,34 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ],
                   ),
                 ),
+                if (cartProvider.promotionalMessages.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  ...cartProvider.promotionalMessages.map((msg) => Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFF86EFAC)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Text("🎉 ", style: TextStyle(fontSize: 16)),
+                        Expanded(
+                          child: Text(
+                            msg.replaceFirst(RegExp(r'^[🎁🎉]\s*'), ''),
+                            style: const TextStyle(
+                              color: Color(0xFF166534),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
+                ],
+
                 const SizedBox(height: 16),
                 /// PRICE DETAILS
                 Container(
@@ -1487,6 +1537,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         valueColor: Colors.green,
                       ),
 
+                      if (promoDiscount > 0) ...[
+                        const SizedBox(height: 8),
+                        _priceRow(
+                          "Offer Discount",
+                          "-${formatPrice(promoDiscount)}",
+                          valueColor: Colors.green,
+                        ),
+                      ],
+
                       if (cartProvider.couponDiscount > 0) ...[
                         const SizedBox(height: 8),
                         _priceRow(
@@ -1505,7 +1564,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         valueColor: shipping == 0 ? Colors.green : null,
                       ),
 
-                      if (cartProvider.couponDiscount > 0) ...[
+                      if (cartProvider.couponDiscount > 0 || promoDiscount > 0) ...[
                         const SizedBox(height: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1514,8 +1573,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            "🎉 You saved ${formatPrice(cartProvider.couponDiscount)}",
-                            style: const TextStyle(color: Colors.green),
+                            "🎉 You saved ${formatPrice(cartProvider.couponDiscount + promoDiscount)}",
+                            style: const TextStyle(color: Colors.green, fontWeight: FontWeight.w600),
                           ),
                         ),
                       ],

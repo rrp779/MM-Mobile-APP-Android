@@ -512,6 +512,34 @@ class CartPage extends StatelessWidget {
               ),
             ),
 
+          /// 🔹 PROMOTIONAL OFFERS & FREE GIFTS
+          if (cart.promotionalMessages.isNotEmpty) ...[
+            ...cart.promotionalMessages.map((msg) => Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF4),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFF86EFAC)),
+              ),
+              child: Row(
+                children: [
+                  const Text("🎉 ", style: TextStyle(fontSize: 16)),
+                  Expanded(
+                    child: Text(
+                      msg.replaceFirst(RegExp(r'^[🎁🎉]\s*'), ''),
+                      style: const TextStyle(
+                        color: Color(0xFF166534),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )),
+          ],
+
           /// 🔹 PRICE BREAKDOWN
           Container(
             padding: const EdgeInsets.all(14),
@@ -537,11 +565,21 @@ class CartPage extends StatelessWidget {
                   "-${formatPrice(cart.totalDiscount)}",
                   valueColor: Colors.green,
                 ),
+
+                if (cart.promotionalDiscount > 0) ...[
+                  const SizedBox(height: 6),
+                  _priceRow(
+                    "Offer Discount",
+                    "-${formatPrice(cart.promotionalDiscount)}",
+                    valueColor: Colors.green,
+                  ),
+                ],
+
                 const Divider(height: 20),
 
                 _priceRow(
                   "Total",
-                  formatPrice(cart.totalSellingPrice),
+                  formatPrice(cart.totalSellingPrice - cart.promotionalDiscount),
                   isBold: true,
                 ),
               ],
@@ -615,12 +653,13 @@ class CartPage extends StatelessWidget {
                       totalMrp: cart.totalMrp,
                       totalDiscount: cart.totalDiscount,
                       totalAmount: cart.totalSellingPrice,
+                      promotionalDiscount: cart.promotionalDiscount,
                     ),
                   ),
                 );
               },
               child: Text(
-                "Checkout ${formatPrice(cart.totalSellingPrice)}",
+                "Checkout ${formatPrice(cart.totalSellingPrice - cart.promotionalDiscount)}",
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,

@@ -634,6 +634,159 @@ class CartProvider with ChangeNotifier {
     return totalMrp - totalSellingPrice;
   }
 
+  /// ---------------- AUTOMATIC PROMOTIONS & GIFTS ----------------
+
+  static const Set<String> hnkToolVariantIds = {
+    "49634701115696", "49634736374064", "49634794635568", "49634910142768",
+    "49634923020592", "49634924134704", "49634925510960", "49634929639728",
+    "49634929672496", "49635038331184", "49635038363952", "49635038396720",
+    "49635038429488", "49635038462256", "49635061924144", "49635101901104",
+    "49635127460144", "49635127492912", "49635140600112", "49635156132144",
+    "49635159769392", "49635163799856", "49635172843824", "49635172876592",
+    "49635172909360", "49635172942128", "49635187818800", "49635191521584",
+    "49635191554352", "49635193749808", "49635291070768", "50461786439984",
+    "50461799776560", "50461805904176", "66739417088304", "66739523420464",
+    "66739534201136", "67570488639792"
+  };
+
+  static const String hnkPaddleBrushVariantId = "49634937995568";
+
+  static const Set<String> bbCreamVariantIds = {
+    "67720111882544", "67720111915312", "67720111948080",
+    "67720111980848", "67720112013616", "67720112046384"
+  };
+
+  static const Set<String> kajalVariantIds = {
+    "67720339423536", "67720339456304"
+  };
+
+  String _extractNumericId(String? raw) {
+    if (raw == null) return "";
+    final digits = RegExp(r'(\d+)').allMatches(raw).map((m) => m.group(0)).toList();
+    return digits.isNotEmpty ? digits.last! : raw;
+  }
+
+  double get promotionalDiscount {
+    double discount = 0;
+
+    bool hasHnkTool = false;
+    double paddleBrushPrice = 0;
+    int paddleBrushQty = 0;
+
+    for (var line in _lines) {
+      final merch = line['merchandise'];
+      final numId = _extractNumericId(merch?['id']?.toString());
+      final qty = (line['quantity'] as int?) ?? 1;
+      final price = double.tryParse(merch?['price']?['amount']?.toString() ?? '0') ?? 0;
+
+      if (hnkToolVariantIds.contains(numId)) {
+        hasHnkTool = true;
+      } else if (numId == hnkPaddleBrushVariantId) {
+        paddleBrushQty += qty;
+        paddleBrushPrice = price;
+      }
+    }
+
+    if (hasHnkTool && paddleBrushQty > 0) {
+      discount += paddleBrushPrice;
+    }
+
+    // BB Cream (Buy 1 Get 2 Free)
+    int bbQty = 0;
+    double bbUnitPrice = 1099;
+    for (var line in _lines) {
+      final merch = line['merchandise'];
+      final numId = _extractNumericId(merch?['id']?.toString());
+      final qty = (line['quantity'] as int?) ?? 1;
+      if (bbCreamVariantIds.contains(numId)) {
+        bbQty += qty;
+        bbUnitPrice = double.tryParse(merch?['price']?['amount']?.toString() ?? '1099') ?? 1099;
+      }
+    }
+    if (bbQty >= 2) {
+      int completedBundles = bbQty ~/ 3;
+      int rem = bbQty % 3;
+      int freeItems = completedBundles * 2;
+      if (rem == 2) freeItems += 1;
+      discount += freeItems * bbUnitPrice;
+    }
+
+    // Kajal (Buy 1 Get 2 Free)
+    int kajalQty = 0;
+    double kajalUnitPrice = 299;
+    for (var line in _lines) {
+      final merch = line['merchandise'];
+      final numId = _extractNumericId(merch?['id']?.toString());
+      final qty = (line['quantity'] as int?) ?? 1;
+      if (kajalVariantIds.contains(numId)) {
+        kajalQty += qty;
+        kajalUnitPrice = double.tryParse(merch?['price']?['amount']?.toString() ?? '299') ?? 299;
+      }
+    }
+    if (kajalQty >= 2) {
+      int completedBundles = kajalQty ~/ 3;
+      int rem = kajalQty % 3;
+      int freeItems = completedBundles * 2;
+      if (rem == 2) freeItems += 1;
+      discount += freeItems * kajalUnitPrice;
+    }
+
+    return discount;
+  }
+
+  List<String> get promotionalMessages {
+    final List<String> messages = [];
+
+    bool hasHnkTool = false;
+    bool hasPaddleBrushInCart = false;
+    for (var line in _lines) {
+      final numId = _extractNumericId(line['merchandise']?['id']?.toString());
+      if (hnkToolVariantIds.contains(numId)) hasHnkTool = true;
+      if (numId == hnkPaddleBrushVariantId) hasPaddleBrushInCart = true;
+    }
+    if (hasHnkTool) {
+      if (hasPaddleBrushInCart) {
+        messages.add("🎁 Free Gift: HNK Paddle Hair Brush (₹422.50) is 100% FREE!");
+      } else {
+        messages.add("🎁 Free Gift: 1x Hnk Paddle Hair Brush (Worth ₹422.50) will be included FREE in your order!");
+      }
+    }
+
+    int bbQty = 0;
+    for (var line in _lines) {
+      final numId = _extractNumericId(line['merchandise']?['id']?.toString());
+      final qty = (line['quantity'] as int?) ?? 1;
+      if (bbCreamVariantIds.contains(numId)) bbQty += qty;
+    }
+    if (bbQty > 0) {
+      if (bbQty == 1) {
+        messages.add("🎉 Buy 1 Get 2 Free: 2 extra Gorgeous Girl BB Creams will be delivered FREE!");
+      } else if (bbQty == 2) {
+        messages.add("🎉 Buy 1 Get 2 Free: 1 extra BB Cream will be delivered FREE (1 already free in cart)!");
+      } else {
+        messages.add("🎉 Buy 1 Get 2 Free applied to Gorgeous Girl BB Cream!");
+      }
+    }
+
+    int kajalQty = 0;
+    for (var line in _lines) {
+      final numId = _extractNumericId(line['merchandise']?['id']?.toString());
+      final qty = (line['quantity'] as int?) ?? 1;
+      if (kajalVariantIds.contains(numId)) kajalQty += qty;
+    }
+    if (kajalQty > 0) {
+      if (kajalQty == 1) {
+        messages.add("🎉 Buy 1 Get 2 Free: 2 extra Automatic Kajals will be delivered FREE!");
+      } else if (kajalQty == 2) {
+        messages.add("🎉 Buy 1 Get 2 Free: 1 extra Automatic Kajal will be delivered FREE (1 already free in cart)!");
+      } else {
+        messages.add("🎉 Buy 1 Get 2 Free applied to Gorgeous Girl Kajal!");
+      }
+    }
+
+    return messages;
+  }
+
   /// ---------------- DISCOUNT CODES ----------------
   
   String? _appliedCoupon;
