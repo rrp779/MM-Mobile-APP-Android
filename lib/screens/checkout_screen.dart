@@ -301,7 +301,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           "promotional_discount": promoDiscount,
           "shipping": shipping,
           "email": customer?["email"] ?? "",
-          "phone": selectedAddress?["phone"] ?? "",
+          "phone": last10,
         }),
       );
 
@@ -422,7 +422,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           "last_name": lastName,
 
           "email": email,
-          "phone": selectedAddress?["phone"] ?? "",
+          "phone": (selectedAddress?["phone"] ?? "").toString().replaceAll(RegExp(r'\D'), '').length >= 10
+              ? (selectedAddress?["phone"] ?? "").toString().replaceAll(RegExp(r'\D'), '').substring((selectedAddress?["phone"] ?? "").toString().replaceAll(RegExp(r'\D'), '').length - 10)
+              : (selectedAddress?["phone"] ?? "").toString(),
 
           "address1": selectedAddress?["address1"] ?? "",
           "city": selectedAddress?["city"] ?? "",
