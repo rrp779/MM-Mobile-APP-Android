@@ -282,6 +282,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     int amountInPaise = (finalAmount * 100).toInt();
 
     final customer = context.read<CustomerModel>().customer;
+    String fullName = selectedAddress?["name"]?.toString() ?? "";
+    List<String> nameParts = fullName.trim().split(RegExp(r'\s+'));
+    String firstName = nameParts.isNotEmpty ? nameParts.first : "";
+    String lastName = nameParts.length > 1 ? nameParts.sublist(1).join(" ") : "";
+    final appliedCoupon = (cartProvider.appliedCoupon ?? couponController.text)
+        .toString()
+        .trim();
 
     try {
       final response = await ApiClient.post(
@@ -295,11 +302,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             "price": item["price"],
             "handle": item["handle"],
           }).toList(),
+          "first_name": firstName,
+          "last_name": lastName,
+          "shipping_address": selectedAddress,
+          "billing_address": selectedAddress,
+          "address": selectedAddress,
           "total_mrp": widget.totalMrp,
+          "totalMrp": widget.totalMrp,
           "discount": widget.totalDiscount,
+          "productDiscount": widget.totalDiscount,
           "coupon_discount": cartProvider.couponDiscount,
+          "couponDiscount": cartProvider.couponDiscount,
+          "couponCode": appliedCoupon.isEmpty ? null : appliedCoupon,
           "promotional_discount": promoDiscount,
+          "promotionalDiscount": promoDiscount,
           "shipping": shipping,
+          "shippingAmount": shipping,
           "email": customer?["email"] ?? "",
           "phone": last10,
         }),
@@ -427,9 +445,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               : (selectedAddress?["phone"] ?? "").toString(),
 
           "address1": selectedAddress?["address1"] ?? "",
+          "address2": selectedAddress?["address2"] ?? "",
           "city": selectedAddress?["city"] ?? "",
-          "state": "Gujarat",
-          "pincode": selectedAddress?["zip"] ?? "",
+          "state": selectedAddress?["province"] ?? selectedAddress?["state"] ?? "",
+          "province": selectedAddress?["province"] ?? selectedAddress?["state"] ?? "",
+          "country": selectedAddress?["country"] ?? "India",
+          "pincode": selectedAddress?["zip"] ?? selectedAddress?["pincode"] ?? "",
 
           "amount": (finalAmount * 100).toInt(),
 
