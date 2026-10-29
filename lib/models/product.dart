@@ -23,6 +23,19 @@ class Product {
     this.tags = const [],
   });
 
+  bool get isPromotionalOrGiftClone {
+    final lowerTitle = title.toLowerCase();
+    final hasGiftTag = tags.any((t) {
+      final l = t.toLowerCase();
+      return l == 'bogos-gift' || l == 'freegift' || l == 'sca-fg-product';
+    });
+    final isZeroPrice = price <= 0;
+    final hasGiftIndicator = title.contains('🎁') ||
+        lowerTitle.contains('100% off') ||
+        lowerTitle.contains('free gift');
+    return hasGiftTag || (isZeroPrice && hasGiftIndicator) || isZeroPrice;
+  }
+
   bool get isOutOfStock =>
       variants.every((v) => v.isOutOfStock);
 

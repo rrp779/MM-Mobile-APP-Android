@@ -627,8 +627,23 @@ class CartPage extends StatelessWidget {
                   await cart.updateBuyerIdentity(customerData["accessToken"]);
                 }
 
-                /// ✅ CONTINUE CHECKOUT (same as your code)
-                final cartItems = cart.lines.map((line) {
+                /// ✅ CONTINUE CHECKOUT
+                final cartItems = cart.lines.where((line) {
+                  final merchandise = line['merchandise'];
+                  final product = merchandise?['product'];
+                  final price = double.tryParse(merchandise?['price']?['amount']?.toString() ?? '0') ?? 0;
+                  final handle = product?['handle']?.toString().toLowerCase() ?? '';
+                  final title = product?['title']?.toString() ?? '';
+                  final variantId = merchandise?['id']?.toString() ?? '';
+
+                  if (variantId.contains('68045778157872') || handle.contains('sca_clone') || handle.contains('freegift') || title.contains('🎁')) {
+                    return false;
+                  }
+                  if (price <= 0) {
+                    return false;
+                  }
+                  return true;
+                }).map((line) {
 
                   final merchandise = line['merchandise'];
                   final product = merchandise['product'];

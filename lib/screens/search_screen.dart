@@ -113,6 +113,9 @@ class _SearchScreenState extends State<SearchScreen> {
 
   /// Client-side verification to ensure products returned genuinely match the search keywords.
   bool _isProductRelevant(Product product, String rawQuery) {
+    // Filter out rogue shadow gift items or zero-price clone products
+    if (product.isPromotionalOrGiftClone) return false;
+
     final trimmed = rawQuery.trim().toLowerCase();
     if (trimmed.isEmpty) return false;
 

@@ -242,6 +242,10 @@ class CartProvider with ChangeNotifier {
 
     if (_cartId == null) return "Failed to initialize cart";
 
+    if (variantId.contains("68045778157872")) {
+      return "Promotional gifts cannot be added directly to cart";
+    }
+
     final existingLine = _lines
         .where((line) => line['merchandise']['id'] == variantId)
         .toList();
