@@ -106,9 +106,10 @@ class _SearchScreenState extends State<SearchScreen> {
         .toList();
     if (words.isEmpty) return "";
 
-    return words
+    final baseQuery = words
         .map((w) => '(title:$w* OR tag:$w* OR vendor:$w* OR product_type:$w*)')
         .join(' AND ');
+    return '$baseQuery AND -tag:bogos-gift AND -tag:freegift';
   }
 
   /// Client-side verification to ensure products returned genuinely match the search keywords.
